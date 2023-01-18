@@ -1,0 +1,41 @@
+# example values
+
+indexing-settings:
+  sites:
+#    - url: https://lenta.ru
+#      name: Лента.ру
+#    - url: https://skillbox.ru
+#      name: Skillbox
+    - url: https://www.playback.ru
+      name: PlayBack.Ru
+#    - url: https://volochek.life
+#      name: volochek.life
+#    - url: https://et-cetera.ru/mobile/
+#      name: et-cetera.ru
+    - url: https://www.lutherancathedral.ru/
+      name: Luther Cathedral
+#    - url: https://nvsu.ru
+#      name: nvsu.ru
+    - url: https://dombulgakova.ru
+      name: Дом Булгакова
+  user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36
+  referrer: http://www.google.com
+
+server:
+  port: 8080
+spring:
+  datasource:
+    username: root
+    password: TestTest1234
+    url: jdbc:mysql://localhost:3306/search_engine?useSSL=false&requireSSL=false&allowPublicKeyRetrieval=true
+  jpa:
+    properties:
+      hibernate:
+        enable_lazy_load_no_trans: true
+        event:
+          merge:
+            entity_copy_observer: allow
+        dialect: org.hibernate.dialect.MySQL8Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
