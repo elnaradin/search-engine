@@ -3,8 +3,6 @@ package searchengine.services;
 import lombok.RequiredArgsConstructor;
 import org.jsoup.Jsoup;
 import org.jsoup.safety.Safelist;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import searchengine.config.SitesList;
 import searchengine.dto.statistics.Data;
@@ -23,10 +21,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class SearchServiceImpl implements SearchService {
-    private final String[] errors = {
-            "Указанная страница не найдена",
-            "Запрос содержит несуществующие слова",
-            "Ошибка при поиске"};
+
     private final String boldStart = "<b>";
     private final String boldEnd = "</b>";
     private final SiteRepository siteRepo;
@@ -34,14 +29,15 @@ public class SearchServiceImpl implements SearchService {
     private final LemmaRepository lemmaRepo;
     private final IndexRepository indexRepo;
     private final SitesList sitesList;
+    private final LemmaFinder lemmaFinder;
 
     @Override
-    public ResponseEntity<Response> getResponse(String query, String site, Integer offset, Integer limit) {
+    public Response getResponse(String query, String site, Integer offset, Integer limit) {
         try {
             limit = 20;
             List<Site> sites = getSites(site);
             List<Data> dataList = new ArrayList<>();
-            Set<String> lemmas = LemmaFinder.getInstance().getLemmaSet(query);
+            Set<String> lemmas = lemmaFinder.getLemmaSet(query);
             Set<Page> pages = getPages(lemmas, sites, offset, limit);
             if (pages != null) {
                 for (Page page : pages) {
@@ -50,29 +46,32 @@ public class SearchServiceImpl implements SearchService {
                 }
             }
             dataList.sort(Collections.reverseOrder());
-            return handleErrors(site, lemmas, pages, dataList);
+            return handleErrors(site, lemmas, pages, dataList, query);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private ResponseEntity<Response> handleErrors(String site, Set<String> lemmas,
-                                  Set<Page> pages, List<Data> dataList) {
+    private Response handleErrors(String site, Set<String> lemmas,
+                                  Set<Page> pages, List<Data> dataList, String query) {
         Response response = new Response();
         if (site != null && sitesList.getSites().stream()
                 .noneMatch(s -> s.getUrl().equals(site))) {
-            response.setError(errors[0]);
-            return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+            response.setError(ERRORS[0]);
+            return response;
         }
         if (lemmas.isEmpty()) {
-            response.setError(errors[1]);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            response.setError(ERRORS[1]);
+            return response;
         }
         if (pages == null) {
-            response.setError(errors[2]);
-            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+            response.setError(ERRORS[2]);
+            return response;
         }
-        return new ResponseEntity<>(getResponse(dataList), HttpStatus.OK);
+        if (query == null) {
+            response.setError(ERRORS[3]);
+        }
+        return getResponse(dataList);
 
     }
 
@@ -94,7 +93,6 @@ public class SearchServiceImpl implements SearchService {
         }
         return sites;
     }
-
 
 
     private Data getData(Page page, String content,
@@ -134,14 +132,14 @@ public class SearchServiceImpl implements SearchService {
                         .size() - 1 : 0), sites, pages, limit, offset);
     }
 
-    private String getBoldPhrase(String text, Set<String> lemmas) throws IOException {
+    private String getBoldPhrase(String text, Set<String> lemmas) {
         Map<String, Integer> snippets = new LinkedHashMap<>();
 
         Map<String, Set<String>> lemmasAndWords =
-                LemmaFinder.getInstance().getTextInLemmas(text);
+                lemmaFinder.getTextInLemmas(text);
         String[] sentences = text.split("\\.");
         for (String sentence : sentences) {
-            String[] words = sentence.split("[\\s,:;!?()\"<>*/]+");
+            String[] words = sentence.split("\\s+");
             String formattedSentence = getFormattedSentence(words, lemmas, lemmasAndWords);
             if (!formattedSentence.contains(boldStart)) {
                 continue;
@@ -173,9 +171,10 @@ public class SearchServiceImpl implements SearchService {
 
 
     private String getLongestBoldPhrase(Map<String, Integer> snippets) {
-        Optional<Map.Entry<String, Integer>> optBoldPhrase = snippets.entrySet().stream()
+        Optional<Map.Entry<String, Integer>> optBoldPhrase
+                = snippets.entrySet().stream()
                 .max(Map.Entry.comparingByValue());
-        if(optBoldPhrase.isPresent()) {
+        if (optBoldPhrase.isPresent()) {
             String boldPhrase = optBoldPhrase.get().getKey();
             int start = boldPhrase.indexOf(boldStart);
             int end = boldPhrase.lastIndexOf(boldEnd) + boldEnd.length();
@@ -186,7 +185,6 @@ public class SearchServiceImpl implements SearchService {
     }
 
 
-
     private String getFormattedSentence(String[] words, Set<String> lemmas,
                                         Map<String, Set<String>> lemmasAndWords) {
         String formattedSentence;
@@ -194,7 +192,8 @@ public class SearchServiceImpl implements SearchService {
         for (String word : words) {
             word = word.trim();
             for (String lemma : lemmas) {
-                if (lemmasAndWords.get(lemma).contains(word.toLowerCase())) {
+                if (lemmasAndWords.get(lemma).contains(word.toLowerCase(Locale.ROOT)
+                        .replaceAll("([^а-я\\s])", " ").trim())) {
                     word = boldStart.concat(word).concat(boldEnd);
                 }
             }

@@ -1,15 +1,18 @@
 package searchengine.services;
 
 
+import searchengine.dto.statistics.Response;
+
 public interface IndexationService {
+    String[] ERRORS = {"Индексация уже запущена",
+            "Индексация не запущена",
+            "Данная страница находится за пределами сайтов, " +
+                    "указанных в конфигурационном файле"};
     String IS_STOPPED_BY_USER_MESSAGE = "Индексация остановлена пользователем";
-    void clearDB();
-    void startIndexing();
-    boolean siteIsPresent(String url);
+    Response startIndexingAndGetResponse();
+    Response stopIndexingAndGetResponse();
+    Response getIndexPageResponse();
     void indexPage(String url);
-    void addSitesToDB();
-    boolean isIndexing();
-    void stopIndexing();
-    boolean isStopped();
+
 }
 

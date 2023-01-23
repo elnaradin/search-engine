@@ -8,7 +8,8 @@ import javax.persistence.*;
 @Entity
 @Getter
 @Setter
-@Table(name = "pages", uniqueConstraints = {@UniqueConstraint(columnNames = { "site_id", "path "}) })
+@Table(name = "pages", uniqueConstraints =
+        {@UniqueConstraint(columnNames = { "site_id", "path "}) })
 public class Page {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,8 +26,7 @@ public class Page {
     @Column(columnDefinition = "INT", nullable = false)
     private int code;
 
-    @Column(columnDefinition = "MEDIUMTEXT "
-            , nullable = false)
+    @Column(columnDefinition = "MEDIUMTEXT ", nullable = false)
     private String content;
 
 }

@@ -17,7 +17,7 @@ public interface LemmaRepository extends JpaRepository<Lemma, Integer> {
     Optional<Lemma> findByLemma(String lemma);
 
     @Query(value = "SELECT * FROM lemmas " +
-            "WHERE `lemma` IN :lemmaSet AND frequency < 1000 ORDER BY `frequency` ASC", nativeQuery = true)
+            "WHERE `lemma` IN :lemmaSet AND frequency < 3000 ORDER BY `frequency` ASC", nativeQuery = true)
     List<Lemma> findByLemmas(Set<String> lemmaSet);
 
     @Query(value = "SELECT COUNT(*) count  FROM lemmas  l " +

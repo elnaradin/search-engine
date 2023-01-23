@@ -38,7 +38,8 @@ public class WebScraper extends RecursiveAction {
 
     public WebScraper(Site site, String path, SiteRepository siteRepo,
                       PageRepository pageRepo, JsoupSettings settings,
-                      LemmaRepository lemmaRepo, IndexRepository indexRepo, IndexationUtils utils) {
+                      LemmaRepository lemmaRepo, IndexRepository indexRepo,
+                      IndexationUtils utils) {
         this.site = site;
         this.path = path;
         this.siteRepo = siteRepo;
@@ -58,12 +59,12 @@ public class WebScraper extends RecursiveAction {
             }
             Document document = getDocument();
             utils.savePageToDB(document, site, path);
-            Set<WebScraper> taskList = ConcurrentHashMap.newKeySet();
+            Set<WebScraper> actionList = ConcurrentHashMap.newKeySet();
             Set<String> urls = getUrls(document);
             for (String url : urls) {
-                taskList.add(createTasks(url));
+                actionList.add(createActions(url));
             }
-            taskList.forEach(ForkJoinTask::join);
+            actionList.forEach(ForkJoinTask::join);
         } catch (CancellationException | BeanCreationNotAllowedException
                  | JpaSystemException ignored) {
         } catch (Exception e) {
@@ -71,7 +72,7 @@ public class WebScraper extends RecursiveAction {
         }
     }
 
-    private WebScraper createTasks(String url) {
+    private WebScraper createActions(String url) {
         String path = url.equals(site.getUrl()) ? "/"
                 : url.replace(site.getUrl(), "");
         WebScraper task = new WebScraper(

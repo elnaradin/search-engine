@@ -1,8 +1,15 @@
 package searchengine.services;
 
-import org.springframework.http.ResponseEntity;
 import searchengine.dto.statistics.Response;
 
 public interface SearchService {
-    ResponseEntity<Response> getResponse(String query, String site, Integer offset, Integer limit);
+    String[] ERRORS = {
+            "Данного сайта нет в списке",
+            "Запрос введен некорректно",
+            "Страниц, удовлетворяющих запрос, нет", "Введен пустой запрос"};
+
+    Response getResponse(String query,
+                         String site,
+                         Integer offset,
+                         Integer limit);
 }

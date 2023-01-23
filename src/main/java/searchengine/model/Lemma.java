@@ -11,7 +11,7 @@ import java.util.Set;
 @Getter
 @Setter
 @Table(name = "lemmas")
-public class Lemma implements Comparable{
+public class Lemma implements Comparable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(columnDefinition = "INT", nullable = false)
@@ -30,6 +30,7 @@ public class Lemma implements Comparable{
 
     @Override
     public int compareTo(Object o) {
-        return Float.compare(getFrequency(), ((Lemma) o).getFrequency());
+        return Float.compare(getFrequency(),
+                ((Lemma) o).getFrequency());
     }
 }

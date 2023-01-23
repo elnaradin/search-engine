@@ -19,7 +19,8 @@ public interface IndexRepository extends JpaRepository<Index, Integer> {
     Float getRelevance(Page page);
 
 
-    @Query(value = "SELECT * FROM `indexes` i  where lemma_id = :lemma AND page_id = :page  LIMIT 1", nativeQuery = true)
+    @Query(value = "SELECT * FROM `indexes` i  where lemma_id = :lemma" +
+            " AND page_id = :page  LIMIT 1", nativeQuery = true)
     Optional<Index> findByLemmaAndPage(Lemma lemma, Page page);
 
 }

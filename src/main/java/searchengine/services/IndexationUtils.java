@@ -21,8 +21,7 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+
 
 @Getter
 @Setter
@@ -33,12 +32,7 @@ public class IndexationUtils {
     private final PageRepository pageRepo;
     private final LemmaRepository lemmaRepo;
     private final IndexRepository indexRepo;
-
-
-    public  Set<Page> pages = ConcurrentHashMap.newKeySet();
-    public  Set<Index> indexes = ConcurrentHashMap.newKeySet();
-    public  Set<Lemma> lemmas = ConcurrentHashMap.newKeySet();
-
+    private final LemmaFinder lemmaFinder;
 
     public void savePageToDB(Document document, Site site, String path) throws IOException {
         Page page;
@@ -53,14 +47,13 @@ public class IndexationUtils {
         saveLemmasAndIndexes(page);
     }
 
-
-    private void saveLemmasAndIndexes(Page page) throws IOException {
+    private void saveLemmasAndIndexes(Page page){
         if (page.getCode() >= 400) {
             return;
         }
         String text = Jsoup.clean(page.getContent(), Safelist.none());
         Map<String, Integer> lemmaSet =
-                LemmaFinder.getInstance().collectLemmas(text);
+                lemmaFinder.collectLemmas(text);
         lemmaSet.forEach((l, r) -> saveLemmas(l, r, page));
     }
 
@@ -82,7 +75,8 @@ public class IndexationUtils {
     }
 
     private void saveIndexes(Lemma lemma, Page page, float rank) {
-        Optional<Index> optIndex = indexRepo.findByLemmaAndPage(lemma, page);
+        Optional<Index> optIndex = indexRepo
+                .findByLemmaAndPage(lemma, page);
         Index index = new Index();
         if (optIndex.isPresent()) {
             index = optIndex.get();

@@ -2,22 +2,17 @@ package searchengine.services;
 
 import org.apache.lucene.morphology.LuceneMorphology;
 import org.apache.lucene.morphology.russian.RussianLuceneMorphology;
+import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.*;
 
-
+@Service
 public class LemmaFinder {
-    private final LuceneMorphology luceneMorphology;
-    private static final String[] particlesNames = new String[]{"МЕЖД", "ПРЕДЛ", "СОЮЗ"};
+    private final LuceneMorphology luceneMorphology = new RussianLuceneMorphology();
+    private  final String[] particlesNames = new String[]{"МЕЖД", "ПРЕДЛ", "СОЮЗ"};
 
-    public static LemmaFinder getInstance() throws IOException {
-        LuceneMorphology morphology = new RussianLuceneMorphology();
-        return new LemmaFinder(morphology);
-    }
-
-    private LemmaFinder(LuceneMorphology luceneMorphology) {
-        this.luceneMorphology = luceneMorphology;
+    public LemmaFinder() throws IOException {
     }
 
     public Map<String, Integer> collectLemmas(String text) {
