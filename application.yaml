@@ -10,14 +10,18 @@ indexing-settings:
       name: PlayBack.Ru
 #    - url: https://volochek.life
 #      name: volochek.life
-#    - url: https://et-cetera.ru/mobile/
-#      name: et-cetera.ru
+    - url: https://et-cetera.ru/mobile/
+      name: et-cetera.ru
     - url: https://www.lutherancathedral.ru/
       name: Luther Cathedral
 #    - url: https://nvsu.ru
 #      name: nvsu.ru
     - url: https://dombulgakova.ru
       name: Дом Булгакова
+    - url: https://nikoartgallery.com/
+      name: Niko art gallery
+    - url: https://www.svetlovka.ru/
+      name: Svetlovka
 
   user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36
   referrer: http://www.google.com

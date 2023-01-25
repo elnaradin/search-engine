@@ -56,7 +56,9 @@ public class SearchServiceImpl implements SearchService {
                                   Set<Page> pages, List<Data> dataList, String query) {
         Response response = new Response();
         if (site != null && sitesList.getSites().stream()
-                .noneMatch(s -> s.getUrl().equals(site))) {
+                .noneMatch(s -> (s.getUrl().endsWith("/") ?
+                        s.getUrl().substring(0, s.getUrl().length() - 1)
+                        : s.getUrl()).equals(site))) {
             response.setError(ERRORS[0]);
             return response;
         }
@@ -118,9 +120,8 @@ public class SearchServiceImpl implements SearchService {
         if (maxValue == null) {
             maxValue = indexRepo.getMaxValue();
         }
-        float relevance = indexRepo
+        return indexRepo
                 .getRelevance(page, maxValue);
-        return relevance;
     }
 
     private Set<Page> getPages(Set<String> lemmas, List<Site> sites, int offset, int limit) {
@@ -237,12 +238,12 @@ public class SearchServiceImpl implements SearchService {
                 startIndex > spaces[0]
                         ? startIndex - spaces[0] : startIndex) + 1;
         int substringEnd = text.indexOf(" ",
-                text.length() - endIndex > spaces[1]
+                text.length() - endIndex - 1 > spaces[1]
                         ? endIndex + spaces[1] : endIndex);
         String snippet = text.substring(substringStart,
                 substringEnd).concat("...");
-        if (snippet.length() > 290) {
-            snippet = snippet.substring(0, 290)
+        if (snippet.length() > 250) {
+            snippet = snippet.substring(0, 250)
                     .concat("...");
         }
         return snippet;
