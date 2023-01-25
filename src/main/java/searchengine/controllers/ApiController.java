@@ -36,8 +36,8 @@ public class ApiController {
 
     @PostMapping("/indexPage")
     public Response indexPage(String url) {
-
-            return indexationService.indexPageAndGetIndexPageResponse(url);
+            return indexationService
+                    .indexPageAndGetIndexPageResponse(url);
     }
 
     @GetMapping("/search")

@@ -39,15 +39,13 @@ public class IndexationServiceImpl implements IndexationService {
     @Override
     public Response startIndexingAndGetResponse() {
         Response response = new Response();
-
         if (!isIndexing()) {
             response.setResult(true);
-            new Thread(this::startIndexing).start();
+            startIndexing();
         } else {
             response.setError(ERRORS[0]);
             response.setResult(false);
         }
-
         return response;
     }
 
@@ -56,11 +54,6 @@ public class IndexationServiceImpl implements IndexationService {
         Response response = new Response();
         stopIndexing();
             if (WebScraper.isStopped ) {
-                try {
-                    Thread.sleep(500);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
                 response.setResult(true);
                 return response;
             } else if (!isIndexing()) {
