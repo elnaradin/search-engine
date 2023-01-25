@@ -21,6 +21,7 @@ import java.util.concurrent.*;
 
 
 public class WebScraper extends RecursiveAction {
+    protected volatile static boolean isStopped;
     private final String path;
     private final Site site;
     @Autowired
@@ -33,13 +34,13 @@ public class WebScraper extends RecursiveAction {
     @Autowired
     private final IndexRepository indexRepo;
     @Autowired
-    private final IndexationUtils utils;
+    private final EntitySaver utils;
 
 
     public WebScraper(Site site, String path, SiteRepository siteRepo,
                       PageRepository pageRepo, JsoupSettings settings,
                       LemmaRepository lemmaRepo, IndexRepository indexRepo,
-                      IndexationUtils utils) {
+                      EntitySaver utils) {
         this.site = site;
         this.path = path;
         this.siteRepo = siteRepo;
@@ -58,9 +59,9 @@ public class WebScraper extends RecursiveAction {
                 return;
             }
             Document document = getDocument();
-            utils.savePageToDB(document, site, path);
+            utils.indexAndSavePageToDB(document, site, path);
             Set<WebScraper> actionList = ConcurrentHashMap.newKeySet();
-            Set<String> urls = getUrls(document);
+            Set<String> urls = checkIfStopped(getUrls(document));
             for (String url : urls) {
                 actionList.add(createActions(url));
             }
@@ -71,6 +72,21 @@ public class WebScraper extends RecursiveAction {
             setErrorToSite(e);
         }
     }
+
+    private synchronized Set<String> checkIfStopped(Set<String> urls)
+            throws InterruptedException {
+        synchronized (this) {
+            if (isStopped == true) {
+                while (!urls.isEmpty()) {
+                    urls.clear();
+                    wait();
+                }
+                notify();
+            }
+        }
+        return urls;
+    }
+
 
     private WebScraper createActions(String url) {
         String path = url.equals(site.getUrl()) ? "/"

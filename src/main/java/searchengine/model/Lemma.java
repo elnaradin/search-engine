@@ -4,8 +4,6 @@ import lombok.Getter;
 import lombok.Setter;
 
 import javax.persistence.*;
-import java.util.HashSet;
-import java.util.Set;
 
 @Entity
 @Getter
@@ -17,12 +15,10 @@ public class Lemma implements Comparable {
     @Column(columnDefinition = "INT", nullable = false)
     private int id;
 
-    @JoinTable(name = "lemmas_sites", joinColumns = {@JoinColumn(name = "lemma_id")},
-            inverseJoinColumns = {@JoinColumn(name = "site_id")})
-    @ManyToMany(cascade = CascadeType.MERGE, fetch = FetchType.LAZY)
-    private Set<Site> sites = new HashSet<>();
+    @ManyToOne(cascade = CascadeType.MERGE, fetch = FetchType.LAZY)
+    private Site site;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String lemma;
 
     @Column(nullable = false)

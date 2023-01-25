@@ -11,8 +11,8 @@ public interface IndexationService {
     String IS_STOPPED_BY_USER_MESSAGE = "Индексация остановлена пользователем";
     Response startIndexingAndGetResponse();
     Response stopIndexingAndGetResponse();
-    Response getIndexPageResponse();
-    void indexPage(String url);
+    Response indexPageAndGetIndexPageResponse(String url);
+
 
 }
 

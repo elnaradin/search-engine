@@ -5,45 +5,38 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import searchengine.Application;
-import searchengine.config.Site;
-import searchengine.services.IndexationServiceImpl;
+import searchengine.dto.statistics.Response;
+import searchengine.services.IndexationService;
 
-import java.util.ArrayList;
-import java.util.List;
 
 @SpringBootTest(classes = Application.class)
 public class IndexationServiceTest {
 
     @Autowired
-    public IndexationServiceImpl indexationServiceImpl;
-
+    public IndexationService indexationService;
 
     @Test
-    @DisplayName("Запуск индексации")
-    public void testStartIndexing(){
-        indexationServiceImpl.startIndexing();
-        Assertions.assertTrue(indexationServiceImpl.isIndexing());
-        indexationServiceImpl.stopIndexing();
-    }
-    @Test
-    @DisplayName("Остановка индексации")
-    public void testStopIndexing(){
-        indexationServiceImpl.stopIndexing();
-        indexationServiceImpl.stopIndexing();
-        Assertions.assertTrue(indexationServiceImpl.isStopped());
-    }
-    @Test
-    @DisplayName("Индексация отдельной страницы")
-    public void testIndexPage(){
+    @DisplayName("Индексация существующей страницы")
+    public void testIndexExistingPage() {
 
-        String exampleUrl = "https://example_site/example";
-        List<Site> sites = new ArrayList<>();
-        Site site = new Site();
-        site.setName("Example site");
-        site.setUrl("https://example_site");
-        sites.add(site);
-        indexationServiceImpl.getSitesList().setSites(sites);
-        indexationServiceImpl.indexPage(exampleUrl);
-        Assertions.assertTrue(indexationServiceImpl.siteIsPresent());
+        String exampleUrl = "https://www.playback.ru";
+        Response actual = indexationService
+                    .indexPageAndGetIndexPageResponse(exampleUrl);
+        Response expected = new Response();
+        expected.setResult(true);
+        Assertions.assertEquals(expected, actual);
     }
+    @Test
+    @DisplayName("Индексация несуществующей страницы")
+    public void testIndexNonExistingPage() {
+        String exampleUrl = "https://www.playback.ru/89797";
+        Response actual = indexationService
+                    .indexPageAndGetIndexPageResponse(exampleUrl);
+
+        Response expected = new Response();
+        expected.setResult(false);
+        expected.setError(indexationService.ERRORS[2]);
+        Assertions.assertEquals(expected, actual);
+    }
+
 }

@@ -8,18 +8,18 @@ import searchengine.model.Lemma;
 import searchengine.model.Page;
 import java.util.Optional;
 
-
-
 @Repository
 public interface IndexRepository extends JpaRepository<Index, Integer> {
+    @Query(value = "SELECT MAX(sum) FROM (SELECT SUM(`rank`) sum " +
+            "FROM `indexes` i GROUP BY `page_id`) AS `value`", nativeQuery = true)
+    Float getMaxValue();
 
-    @Query(value = "SELECT SUM(`rank`) / (SELECT SUM(`rank`) " +
-            "FROM `indexes` i group by `page_id` order by `rank` DESC limit 1) " +
-            "FROM `indexes` i where  page_id = :page", nativeQuery = true)
-    Float getRelevance(Page page);
+    @Query(value = "SELECT SUM(`rank`) / :maxValue " +
+            "FROM `indexes` i WHERE  page_id = :page", nativeQuery = true)
+    Float getRelevance(Page page, float maxValue);
 
 
-    @Query(value = "SELECT * FROM `indexes` i  where lemma_id = :lemma" +
+    @Query(value = "SELECT * FROM `indexes` i  WHERE lemma_id = :lemma" +
             " AND page_id = :page  LIMIT 1", nativeQuery = true)
     Optional<Index> findByLemmaAndPage(Lemma lemma, Page page);
 

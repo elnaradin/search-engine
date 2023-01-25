@@ -27,27 +27,37 @@ import java.util.Optional;
 @Setter
 @Service
 @RequiredArgsConstructor
-public class IndexationUtils {
+public class EntitySaver {
     private final SiteRepository siteRepo;
     private final PageRepository pageRepo;
     private final LemmaRepository lemmaRepo;
     private final IndexRepository indexRepo;
     private final LemmaFinder lemmaFinder;
 
-    public void savePageToDB(Document document, Site site, String path) throws IOException {
-        Page page;
+    public void indexAndSavePageToDB(Document document, Site site, String path) throws IOException {
+
         Optional<Page> optPage = pageRepo
                 .findPage(path, site);
-        page = optPage.orElseGet(() -> PageBuilder.map(site, document, path));
-        pageRepo.saveAndFlush(page);
+        Page page = optPage.orElseGet(() -> PageBuilder.map(site, document, path));
+
         Optional<Site> optSite = siteRepo
                 .findByUrl(site.getUrl());
         optSite.get().setStatusTime(new Date());
-        siteRepo.saveAndFlush(optSite.get());
+
+
+            if(!WebScraper.isStopped) {
+                pageRepo.saveAndFlush(page);
+                siteRepo.saveAndFlush(optSite.get());
+            }else{
+                return;
+            }
+
         saveLemmasAndIndexes(page);
+
     }
 
     private void saveLemmasAndIndexes(Page page){
+
         if (page.getCode() >= 400) {
             return;
         }
@@ -59,22 +69,32 @@ public class IndexationUtils {
 
     private void saveLemmas(String l, float rank,
                             Page page) {
+
         Lemma lemma = new Lemma();
         Optional<Lemma> optLemma = lemmaRepo.findByLemma(l);
         if (optLemma.isPresent()) {
             lemma = optLemma.get();
-            lemma.getSites().add(page.getSite());
+            lemma.setSite(page.getSite());
             lemma.setFrequency(optLemma.get().getFrequency() + 1);
         } else {
             lemma.setLemma(l);
-            lemma.getSites().add(page.getSite());
+            lemma.setSite(page.getSite());
             lemma.setFrequency(1);
         }
-        lemmaRepo.saveAndFlush(lemma);
+
+            if(!WebScraper.isStopped) {
+
+                lemmaRepo.saveAndFlush(lemma);
+            }else{
+                return;
+            }
+
+
         saveIndexes(lemma, page, rank);
     }
 
     private void saveIndexes(Lemma lemma, Page page, float rank) {
+
         Optional<Index> optIndex = indexRepo
                 .findByLemmaAndPage(lemma, page);
         Index index = new Index();
@@ -84,6 +104,11 @@ public class IndexationUtils {
         index.setLemma(lemma);
         index.setPage(page);
         index.setRank(rank);
-        indexRepo.saveAndFlush(index);
+
+            if(!WebScraper.isStopped) {
+                indexRepo.saveAndFlush(index);
+
+            }
+
     }
 }

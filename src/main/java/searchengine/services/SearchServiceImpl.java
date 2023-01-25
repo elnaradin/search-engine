@@ -21,7 +21,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class SearchServiceImpl implements SearchService {
-
+    private Float maxValue;
     private final String boldStart = "<b>";
     private final String boldEnd = "</b>";
     private final SiteRepository siteRepo;
@@ -108,11 +108,19 @@ public class SearchServiceImpl implements SearchService {
             int end = content.indexOf(titleEnd);
             data.setTitle(page.getContent().substring(start, end));
         }
-        float relevance = indexRepo.getRelevance(page);
-        data.setRelevance(relevance);
+        data.setRelevance(getRelevance(page));
         String text = Jsoup.clean(content, Safelist.none());
         data.setSnippet(getSnippet(getBoldPhrase(text, lemmas), text));
         return data;
+    }
+
+    private float getRelevance(Page page) {
+        if (maxValue == null) {
+            maxValue = indexRepo.getMaxValue();
+        }
+        float relevance = indexRepo
+                .getRelevance(page, maxValue);
+        return relevance;
     }
 
     private Set<Page> getPages(Set<String> lemmas, List<Site> sites, int offset, int limit) {
@@ -192,7 +200,11 @@ public class SearchServiceImpl implements SearchService {
         for (String word : words) {
             word = word.trim();
             for (String lemma : lemmas) {
-                if (lemmasAndWords.get(lemma).contains(word.toLowerCase(Locale.ROOT)
+                if (lemmasAndWords == null){
+                    continue;
+                }
+                if (lemmasAndWords.get(lemma)
+                        .contains(word.toLowerCase(Locale.ROOT)
                         .replaceAll("([^а-я\\s])", " ").trim())) {
                     word = boldStart.concat(word).concat(boldEnd);
                 }

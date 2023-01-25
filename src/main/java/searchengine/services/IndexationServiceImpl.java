@@ -19,7 +19,6 @@ import searchengine.repositories.SiteRepository;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -27,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 @Getter
 public class IndexationServiceImpl implements IndexationService {
 
-    private String singlePageUrl;
+
     private final SitesList sitesList;
     private ForkJoinPool pool;
     private final SiteRepository siteRepo;
@@ -35,8 +34,7 @@ public class IndexationServiceImpl implements IndexationService {
     private final LemmaRepository lemmaRepo;
     private final IndexRepository indexRepo;
     private final JsoupSettings settings;
-    private final IndexationUtils utils;
-    private boolean isStopped;
+    private final EntitySaver utils;
 
     @Override
     public Response startIndexingAndGetResponse() {
@@ -44,7 +42,7 @@ public class IndexationServiceImpl implements IndexationService {
 
         if (!isIndexing()) {
             response.setResult(true);
-            startIndexing();
+            new Thread(this::startIndexing).start();
         } else {
             response.setError(ERRORS[0]);
             response.setResult(false);
@@ -57,27 +55,37 @@ public class IndexationServiceImpl implements IndexationService {
     public Response stopIndexingAndGetResponse() {
         Response response = new Response();
         stopIndexing();
-        if (pool.isShutdown()) {
-            response.setResult(true);
-            return response;
-        } else if (!isIndexing()) {
-            response.setError(ERRORS[1]);
-        }
+            if (WebScraper.isStopped ) {
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                response.setResult(true);
+                return response;
+            } else if (!isIndexing()) {
+                response.setError(ERRORS[1]);
+            }
         return response;
     }
 
     @Override
-    public Response getIndexPageResponse() {
+    public Response indexPageAndGetIndexPageResponse(String url) {
         Response response = new Response();
-        if (siteIsPresent()) {
-            response.setResult(true);
-            return response;
+        try {
+            if (siteIsPresent(url)) {
+                response.setResult(true);
+                new Thread(()-> indexPage(url)).start();
+                return response;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
         response.setError(ERRORS[2]);
         return response;
     }
 
-    public void clearDB() {
+    private void clearDB() {
         indexRepo.deleteAllInBatch();
         lemmaRepo.deleteAllInBatch();
         pageRepo.deleteAllInBatch();
@@ -85,7 +93,8 @@ public class IndexationServiceImpl implements IndexationService {
     }
 
 
-    public void startIndexing() {
+    private void startIndexing() {
+        WebScraper.isStopped = false;
         clearDB();
         addSitesToDB();
         pool = new ForkJoinPool();
@@ -102,10 +111,15 @@ public class IndexationServiceImpl implements IndexationService {
         threads.forEach(Thread::start);
     }
 
-    public boolean siteIsPresent() {
+    private boolean siteIsPresent(String url) throws IOException {
+        if(Jsoup.connect(url).ignoreHttpErrors(true)
+                .ignoreContentType(true).get().connection()
+                .response().statusCode() == 404){
+            return false;
+        }
         for (searchengine.config.Site site
                 : sitesList.getSites()) {
-            if (singlePageUrl.startsWith(site.getUrl())) {
+            if (url.startsWith(site.getUrl())) {
                 return true;
             }
         }
@@ -122,56 +136,37 @@ public class IndexationServiceImpl implements IndexationService {
         return null;
     }
 
-    public void indexPage(String url) {
-        singlePageUrl = url;
-        if (!siteIsPresent()) {
-            return;
-        }
+    private void indexPage(String url) {
         try {
             Document document = Jsoup.connect(url).get();
             Site site = findSiteByPageURL(url);
-            utils.savePageToDB(document, site,
+            utils.indexAndSavePageToDB(document, site,
                     url.replace(site.getUrl(), ""));
         } catch (IOException ex) {
             setFailed(ex.getMessage());
         }
     }
 
-    public void addSitesToDB() {
+    private void addSitesToDB() {
         siteRepo.saveAll(SiteMapper
                 .mapAll(sitesList.getSites()));
     }
 
-    public boolean isIndexing() {
+    private boolean isIndexing() {
         if (pool == null) {
             return false;
         }
-        return !pool.isShutdown()
-                || !pool.isTerminated();
+        return !WebScraper.isStopped;
     }
 
-    public void stopIndexing() {
+    private void stopIndexing() {
         if (!isIndexing()) {
             return;
         }
-        while (!pool.isTerminated()) {
-            pool.shutdownNow();
-        }
+        WebScraper.isStopped = true;
         setFailed(IS_STOPPED_BY_USER_MESSAGE);
     }
 
-    public boolean isStopped() {
-        if (pool != null) {
-            try {
-                return pool.isShutdown() && pool
-                        .awaitTermination(100_000,
-                                TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return true;
-    }
 
     private void setIndexed(Site site) {
         if (!pool.isShutdown()) {
