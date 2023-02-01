@@ -35,7 +35,7 @@ public class IndexationServiceTest {
 
         Response expected = new Response();
         expected.setResult(false);
-        expected.setError(indexationService.ERRORS[2]);
+        expected.setError(indexationService.errors[2]);
         Assertions.assertEquals(expected, actual);
     }
 

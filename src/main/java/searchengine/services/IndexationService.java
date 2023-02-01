@@ -4,7 +4,7 @@ package searchengine.services;
 import searchengine.dto.statistics.Response;
 
 public interface IndexationService {
-    String[] ERRORS = {"Индексация уже запущена",
+    String[] errors = {"Индексация уже запущена",
             "Индексация не запущена",
             "Данная страница находится за пределами сайтов, " +
                     "указанных в конфигурационном файле"};

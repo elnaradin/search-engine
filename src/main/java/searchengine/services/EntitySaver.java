@@ -35,33 +35,30 @@ public class EntitySaver {
     private final LemmaFinder lemmaFinder;
 
     public void indexAndSavePageToDB(Document document, Site site, String path) throws IOException {
-
         Optional<Page> optPage = pageRepo
                 .findPage(path, site);
         Page page = optPage.orElseGet(() -> PageBuilder.map(site, document, path));
-
         Optional<Site> optSite = siteRepo
                 .findByUrl(site.getUrl());
         optSite.get().setStatusTime(new Date());
 
-
-            if(!WebScraper.isStopped) {
-                pageRepo.saveAndFlush(page);
-                siteRepo.saveAndFlush(optSite.get());
-            }else{
-                return;
-            }
-
+        if (!WebScraper.isStopped) {
+            pageRepo.saveAndFlush(page);
+            siteRepo.saveAndFlush(optSite.get());
+        } else {
+            return;
+        }
         saveLemmasAndIndexes(page);
-
     }
 
-    private void saveLemmasAndIndexes(Page page){
+    private void saveLemmasAndIndexes(Page page) {
 
         if (page.getCode() >= 400) {
             return;
         }
-        String text = Jsoup.clean(page.getContent(), Safelist.none());
+        String text = Jsoup.clean(page.getContent(), Safelist.none())
+                .replaceAll("<[^>]*>", " ")
+                .replaceAll("\\s+", " ");
         Map<String, Integer> lemmaSet =
                 lemmaFinder.collectLemmas(text);
         lemmaSet.forEach((l, r) -> saveLemmas(l, r, page));
@@ -69,7 +66,6 @@ public class EntitySaver {
 
     private void saveLemmas(String l, float rank,
                             Page page) {
-
         Lemma lemma = new Lemma();
         Optional<Lemma> optLemma = lemmaRepo.findByLemma(l);
         if (optLemma.isPresent()) {
@@ -81,20 +77,15 @@ public class EntitySaver {
             lemma.setSite(page.getSite());
             lemma.setFrequency(1);
         }
-
-            if(!WebScraper.isStopped) {
-
-                lemmaRepo.saveAndFlush(lemma);
-            }else{
-                return;
-            }
-
-
+        if (!WebScraper.isStopped) {
+            lemmaRepo.saveAndFlush(lemma);
+        } else {
+            return;
+        }
         saveIndexes(lemma, page, rank);
     }
 
     private void saveIndexes(Lemma lemma, Page page, float rank) {
-
         Optional<Index> optIndex = indexRepo
                 .findByLemmaAndPage(lemma, page);
         Index index = new Index();
@@ -104,11 +95,8 @@ public class EntitySaver {
         index.setLemma(lemma);
         index.setPage(page);
         index.setRank(rank);
-
-            if(!WebScraper.isStopped) {
-                indexRepo.saveAndFlush(index);
-
-            }
-
+        if (!WebScraper.isStopped) {
+            indexRepo.saveAndFlush(index);
+        }
     }
 }

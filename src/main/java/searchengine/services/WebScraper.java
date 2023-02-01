@@ -66,10 +66,8 @@ public class WebScraper extends RecursiveAction {
                 actionList.add(createActions(url));
             }
             actionList.forEach(ForkJoinTask::join);
-        } catch (CancellationException | BeanCreationNotAllowedException
-                 | JpaSystemException ignored) {
         } catch (Exception e) {
-            setErrorToSite(e);
+            setErrorToSite();
         }
     }
 
@@ -101,13 +99,14 @@ public class WebScraper extends RecursiveAction {
 
     private Document getDocument() throws IOException, InterruptedException {
         String url = site.getUrl() + path;
-        Thread.sleep(500);
+        Thread.sleep(2000);
         return Jsoup.connect(url)
                 .userAgent(settings.getUserAgent())
                 .referrer(settings.getReferrer())
                 .ignoreHttpErrors(true)
                 .ignoreContentType(true)
-                .timeout(40_000)
+                .followRedirects(false)
+                .timeout(60_000)
                 .get();
     }
 
@@ -139,11 +138,10 @@ public class WebScraper extends RecursiveAction {
         return !url.matches(regex);
     }
 
-    private void setErrorToSite(Exception e) {
-
+    private void setErrorToSite() {
         Optional<Site> optSite = siteRepo.findByUrl(site.getUrl());
         if (optSite.isPresent()) {
-            optSite.get().setLastError(e.getMessage());
+            optSite.get().setLastError("Ошибка в процессе обхода сайта");
             siteRepo.saveAndFlush(optSite.get());
         }
     }

@@ -16,17 +16,18 @@ import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
 
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
 @Setter
 @Getter
 public class IndexationServiceImpl implements IndexationService {
-
-
     private final SitesList sitesList;
     private ForkJoinPool pool;
     private final SiteRepository siteRepo;
@@ -36,6 +37,11 @@ public class IndexationServiceImpl implements IndexationService {
     private final JsoupSettings settings;
     private final EntitySaver utils;
 
+    @PostConstruct
+    private void setStopped(){
+        WebScraper.isStopped = true;
+    }
+
     @Override
     public Response startIndexingAndGetResponse() {
         Response response = new Response();
@@ -43,7 +49,7 @@ public class IndexationServiceImpl implements IndexationService {
             response.setResult(true);
             startIndexing();
         } else {
-            response.setError(ERRORS[0]);
+            response.setError(errors[0]);
             response.setResult(false);
         }
         return response;
@@ -53,12 +59,12 @@ public class IndexationServiceImpl implements IndexationService {
     public Response stopIndexingAndGetResponse() {
         Response response = new Response();
         stopIndexing();
-            if (WebScraper.isStopped ) {
-                response.setResult(true);
-                return response;
-            } else if (!isIndexing()) {
-                response.setError(ERRORS[1]);
-            }
+        if (WebScraper.isStopped) {
+            response.setResult(true);
+            return response;
+        } else if (!isIndexing()) {
+            response.setError(errors[1]);
+        }
         return response;
     }
 
@@ -68,13 +74,13 @@ public class IndexationServiceImpl implements IndexationService {
         try {
             if (siteIsPresent(url)) {
                 response.setResult(true);
-                new Thread(()-> indexPage(url)).start();
+                new Thread(() -> indexPage(url)).start();
                 return response;
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
-        response.setError(ERRORS[2]);
+        response.setError(errors[2]);
         return response;
     }
 
@@ -84,7 +90,6 @@ public class IndexationServiceImpl implements IndexationService {
         pageRepo.deleteAllInBatch();
         siteRepo.deleteAllInBatch();
     }
-
 
     private void startIndexing() {
         WebScraper.isStopped = false;
@@ -104,10 +109,16 @@ public class IndexationServiceImpl implements IndexationService {
         threads.forEach(Thread::start);
     }
 
+
+
+
     private boolean siteIsPresent(String url) throws IOException {
-        if(Jsoup.connect(url).ignoreHttpErrors(true)
+        if (!url.matches("https?://[\\w\\W]+")){
+            return false;
+        }
+        if (Jsoup.connect(url).ignoreHttpErrors(true)
                 .ignoreContentType(true).get().connection()
-                .response().statusCode() == 404){
+                .response().statusCode() == 404) {
             return false;
         }
         for (searchengine.config.Site site
@@ -152,17 +163,19 @@ public class IndexationServiceImpl implements IndexationService {
         return !WebScraper.isStopped;
     }
 
+
     private void stopIndexing() {
         if (!isIndexing()) {
             return;
         }
-        WebScraper.isStopped = true;
+        setStopped();
+        pool.shutdownNow();
         setFailed(IS_STOPPED_BY_USER_MESSAGE);
     }
 
 
     private void setIndexed(Site site) {
-        if (!pool.isShutdown()) {
+        if (!WebScraper.isStopped) {
             Optional<Site> optSite = siteRepo
                     .findByUrl(site.getUrl());
             if (optSite.isPresent() && !optSite.get()
@@ -175,10 +188,16 @@ public class IndexationServiceImpl implements IndexationService {
 
     private void setFailed(String message) {
         List<Site> sites = siteRepo.findAll();
-        sites.forEach(site -> {
-            site.setStatus(Status.FAILED);
-            site.setLastError(message);
-            siteRepo.saveAllAndFlush(sites);
-        });
+        try {
+            if(pool.awaitTermination(3_000, TimeUnit.MILLISECONDS)) {
+                sites.forEach(site -> {
+                    site.setStatus(Status.FAILED);
+                    site.setLastError(message);
+                    siteRepo.saveAllAndFlush(sites);
+                });
+            }
+        } catch (InterruptedException e) {
+           e.printStackTrace();
+        }
     }
 }

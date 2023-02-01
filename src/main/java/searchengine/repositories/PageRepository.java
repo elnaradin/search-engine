@@ -14,7 +14,6 @@ import java.util.Set;
 
 @Repository
 public interface PageRepository extends JpaRepository<Page, Integer> {
-
     @Query(value = "SELECT Distinct`path` from `pages`" +
             " where `path` = :path " +
             "AND `site_id` = :site  LIMIT 1", nativeQuery = true)

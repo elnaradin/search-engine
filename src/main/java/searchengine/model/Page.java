@@ -26,7 +26,9 @@ public class Page {
     @Column(columnDefinition = "INT", nullable = false)
     private int code;
 
-    @Column(columnDefinition = "MEDIUMTEXT ", nullable = false)
+    @Column(columnDefinition = "MEDIUMTEXT CHARACTER SET " +
+            "utf8mb4 COLLATE utf8mb4_general_ci",
+            nullable = false)
     private String content;
 
 }

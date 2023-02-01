@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.jsoup.Jsoup;
 import org.jsoup.safety.Safelist;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 import searchengine.config.SitesList;
 import searchengine.dto.statistics.Data;
 import searchengine.dto.statistics.Response;
@@ -33,12 +34,13 @@ public class SearchServiceImpl implements SearchService {
 
     @Override
     public Response getResponse(String query, String site, Integer offset, Integer limit) {
+        limit = 20;
+        List<Site> sites = getSites(site);
+        List<Data> dataList = new ArrayList<>();
+        Set<String> lemmas = lemmaFinder.getLemmaSet(query
+                .replaceAll("[Ёё]", "е"));
+        Set<Page> pages = getPages(lemmas, sites, offset, limit);
         try {
-            limit = 20;
-            List<Site> sites = getSites(site);
-            List<Data> dataList = new ArrayList<>();
-            Set<String> lemmas = lemmaFinder.getLemmaSet(query);
-            Set<Page> pages = getPages(lemmas, sites, offset, limit);
             if (pages != null) {
                 for (Page page : pages) {
                     String content = page.getContent();
@@ -46,35 +48,38 @@ public class SearchServiceImpl implements SearchService {
                 }
             }
             dataList.sort(Collections.reverseOrder());
-            return handleErrors(site, lemmas, pages, dataList, query);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            e.printStackTrace();
         }
+        return handleErrors(site, lemmas, pages, dataList, query);
     }
 
     private Response handleErrors(String site, Set<String> lemmas,
                                   Set<Page> pages, List<Data> dataList, String query) {
         Response response = new Response();
-        if (site != null && sitesList.getSites().stream()
-                .noneMatch(s -> (s.getUrl().endsWith("/") ?
-                        s.getUrl().substring(0, s.getUrl().length() - 1)
-                        : s.getUrl()).equals(site))) {
-            response.setError(ERRORS[0]);
+        if (site != null && !siteIsPresent(site)) {
+            response.setError(errors[0]);
             return response;
         }
         if (lemmas.isEmpty()) {
-            response.setError(ERRORS[1]);
+            response.setError(errors[1]);
             return response;
         }
         if (pages == null) {
-            response.setError(ERRORS[2]);
+            response.setError(errors[2]);
             return response;
         }
         if (query == null) {
-            response.setError(ERRORS[3]);
+            response.setError(errors[3]);
         }
         return getResponse(dataList);
+    }
 
+    private boolean siteIsPresent(String site) {
+        return sitesList.getSites().stream()
+                .anyMatch(s -> (s.getUrl().endsWith("/") ?
+                        s.getUrl().substring(0, s.getUrl().length() - 1)
+                        : s.getUrl()).equals(site));
     }
 
     private Response getResponse(List<Data> dataList) {
@@ -99,21 +104,30 @@ public class SearchServiceImpl implements SearchService {
 
     private Data getData(Page page, String content,
                          Set<String> lemmas) throws IOException {
-        String titleStart = "<title>";
-        String titleEnd = "</title>";
         Data data = new Data();
         data.setSite(page.getSite().getUrl());
         data.setSiteName(page.getSite().getName());
         data.setUri(page.getPath());
+        data.setTitle(getTitle(content));
+        data.setRelevance(getRelevance(page));
+        String text = Jsoup.clean(content, Safelist.none())
+                .replaceAll("&nbsp;", " ")
+                .replaceAll("<[^>]*>", " ")
+                .replaceAll("\\s+", " ");
+
+        data.setSnippet(getSnippet(getBoldPhrase(text, lemmas), text));
+        return data;
+    }
+
+    private String getTitle(String content) {
+        String titleStart = "<title>";
+        String titleEnd = "</title>";
         if (content.contains(titleStart)) {
             int start = content.indexOf(titleStart) + titleStart.length();
             int end = content.indexOf(titleEnd);
-            data.setTitle(page.getContent().substring(start, end));
+            return content.substring(start, end);
         }
-        data.setRelevance(getRelevance(page));
-        String text = Jsoup.clean(content, Safelist.none());
-        data.setSnippet(getSnippet(getBoldPhrase(text, lemmas), text));
-        return data;
+        return null;
     }
 
     private float getRelevance(Page page) {
@@ -125,8 +139,8 @@ public class SearchServiceImpl implements SearchService {
     }
 
     private Set<Page> getPages(Set<String> lemmas, List<Site> sites, int offset, int limit) {
-        List<Lemma> sortedLemmas = lemmaRepo.findByLemmas(lemmas);
-        if (sortedLemmas.isEmpty()) {
+        List<Lemma> sortedLemmas = getSortedLemmas(lemmas);
+        if (sortedLemmas == null) {
             return null;
         }
         Set<Page> pages = pageRepo.getALLPages(sortedLemmas, sites);
@@ -141,6 +155,22 @@ public class SearchServiceImpl implements SearchService {
                         .size() - 1 : 0), sites, pages, limit, offset);
     }
 
+    private List<Lemma> getSortedLemmas(Set<String> lemmas) {
+        List<Lemma> sortedLemmas = lemmaRepo.findByLemmas(lemmas);
+        if (sortedLemmas.size() < lemmas.size()) {
+            return null;
+        }
+        for (int i = 0; i < sortedLemmas.size(); i++) {
+            if (sortedLemmas.get(i).getFrequency() > 2000) {
+                sortedLemmas.remove(sortedLemmas.get(i));
+            }
+        }
+        if (CollectionUtils.isEmpty(sortedLemmas)) {
+            return null;
+        }
+        return sortedLemmas;
+    }
+
     private String getBoldPhrase(String text, Set<String> lemmas) {
         Map<String, Integer> snippets = new LinkedHashMap<>();
 
@@ -148,8 +178,8 @@ public class SearchServiceImpl implements SearchService {
                 lemmaFinder.getTextInLemmas(text);
         String[] sentences = text.split("\\.");
         for (String sentence : sentences) {
-            String[] words = sentence.split("\\s+");
-            String formattedSentence = getFormattedSentence(words, lemmas, lemmasAndWords);
+
+            String formattedSentence = getFormattedSentence(sentence, lemmas, lemmasAndWords);
             if (!formattedSentence.contains(boldStart)) {
                 continue;
             }
@@ -183,37 +213,50 @@ public class SearchServiceImpl implements SearchService {
         Optional<Map.Entry<String, Integer>> optBoldPhrase
                 = snippets.entrySet().stream()
                 .max(Map.Entry.comparingByValue());
-        if (optBoldPhrase.isPresent()) {
-            String boldPhrase = optBoldPhrase.get().getKey();
-            int start = boldPhrase.indexOf(boldStart);
-            int end = boldPhrase.lastIndexOf(boldEnd) + boldEnd.length();
-            boldPhrase = boldPhrase.substring(start, end);
-            return boldPhrase;
+        if (optBoldPhrase.isEmpty()) {
+            return "";
         }
-        return "";
+        String boldPhrase = optBoldPhrase.get().getKey();
+        int start = boldPhrase.indexOf(boldStart);
+        int end = boldPhrase.lastIndexOf(boldEnd) + boldEnd.length();
+        boldPhrase = boldPhrase.substring(start > 3 ? start - 3 : start,
+                boldPhrase.length() - end > 3 ? end + 3 : end);
+        return boldPhrase;
     }
 
 
-    private String getFormattedSentence(String[] words, Set<String> lemmas,
+    private String getFormattedSentence(String sentence, Set<String> lemmas,
                                         Map<String, Set<String>> lemmasAndWords) {
-        String formattedSentence;
-        StringBuilder builder = new StringBuilder();
+        String[] words = sentence
+//                .replaceAll("&nbsp;", " ")
+                .split("\\s");
+        StringBuilder formattedSentence = new StringBuilder();
         for (String word : words) {
-            word = word.trim();
+            String formattedWord = word.toLowerCase(Locale.ROOT)
+                    .replaceAll("([^а-яё\\-\\s])", " ").strip();
             for (String lemma : lemmas) {
-                if (lemmasAndWords == null){
+                if (lemmasAndWords == null) {
                     continue;
                 }
-                if (lemmasAndWords.get(lemma)
-                        .contains(word.toLowerCase(Locale.ROOT)
-                        .replaceAll("([^а-я\\s])", " ").trim())) {
-                    word = boldStart.concat(word).concat(boldEnd);
+
+                if (lemmasAndWords.get(lemma).stream().anyMatch(formattedWord::equals)) {
+                    String cleanedWord = word.replaceAll("[^\\-а-яA-ЯЁё]", "");
+                    word = word.replace(cleanedWord, boldStart.concat(cleanedWord).concat(boldEnd));
+                }
+                if (formattedWord.contains("-")){
+                    if((lemmasAndWords.get(lemma).stream().map(String::strip).anyMatch(formattedWord::startsWith))){
+                        String cleanedWord = word.substring(0, word.indexOf("-")).replaceAll("[^\\-а-яA-ЯЁё]", "");
+                        word = word.replace(cleanedWord, boldStart.concat(cleanedWord).concat(boldEnd));
+                    }
+                    if((lemmasAndWords.get(lemma).stream().anyMatch(formattedWord::endsWith))){
+                        String cleanedWord = word.substring(word.lastIndexOf("-") + 1).replaceAll("[^\\-а-яA-ЯЁё]", "");
+                        word = word.replace(cleanedWord, boldStart.concat(cleanedWord).concat(boldEnd));
+                    }
                 }
             }
-            builder.append(word).append(" ");
+            formattedSentence.append(word).append(" ");
         }
-        formattedSentence = builder.toString();
-        return formattedSentence;
+        return formattedSentence.toString();
     }
 
     private String getSnippet(String formattedSentence, String text) {
@@ -222,9 +265,9 @@ public class SearchServiceImpl implements SearchService {
         int startIndex = text.indexOf(sentence);
         int endIndex = text.indexOf(sentence) + sentence.length();
         if (startIndex < 0) {
-            return formattedSentence.length() > 250
+            return formattedSentence.length() > 240
                     ? formattedSentence
-                    .substring(0, 250) : formattedSentence;
+                    .substring(0, 240) : formattedSentence;
         }
         String subString = text.substring(startIndex, endIndex);
         text = text.replace(subString, formattedSentence);
@@ -233,30 +276,32 @@ public class SearchServiceImpl implements SearchService {
 
 
     private String cutText(int startIndex, int endIndex, String text) {
-        int[] spaces = getSpaces(text, startIndex, endIndex);
-        int substringStart = text.indexOf(" ",
-                startIndex > spaces[0]
-                        ? startIndex - spaces[0] : startIndex) + 1;
-        int substringEnd = text.indexOf(" ",
-                text.length() - endIndex - 1 > spaces[1]
-                        ? endIndex + spaces[1] : endIndex);
+        int[] distance = getDistance(text, startIndex, endIndex);
+        int substringStart = text.indexOf("\s",
+                startIndex > distance[0]
+                        ? startIndex - distance[0] : startIndex);
+        if (substringStart > text.indexOf(boldStart)) {
+            substringStart = 0;
+        }
+        int substringEnd = text.length() - endIndex - 1 > distance[1]
+                ? endIndex + distance[1] : text.length();
         String snippet = text.substring(substringStart,
                 substringEnd).concat("...");
-        if (snippet.length() > 250) {
-            snippet = snippet.substring(0, 250)
+        if (snippet.length() > 240) {
+            snippet = snippet.substring(0, 240)
                     .concat("...");
         }
         return snippet;
     }
 
-    private int[] getSpaces(String text, int startIndex, int endIndex) {
-        int leftSpace = 50;
-        int rightSpace = 190;
+    private int[] getDistance(String text, int startIndex, int endIndex) {
+        int leftSpace = 30;
+        int rightSpace = 250;
         if (startIndex < leftSpace) {
             leftSpace = Math.abs(leftSpace - startIndex);
         }
         if (text.length() - endIndex < rightSpace) {
-            rightSpace = Math.abs(text.length() - 1 - endIndex);
+            rightSpace = Math.abs(text.length() - endIndex - 1);
         }
         return new int[]{leftSpace, rightSpace};
     }

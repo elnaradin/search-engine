@@ -10,8 +10,10 @@ import java.util.Optional;
 
 @Repository
 public interface SiteRepository extends JpaRepository<Site, Integer> {
-
-    @Query(value = "SELECT Distinct * FROM `sites` WHERE `url` = :url LIMIT 1", nativeQuery = true)
+    @Query(value = "SELECT * FROM `sites` WHERE `url` = :url LIMIT 1", nativeQuery = true)
     Optional<Site> findByUrl(String url);
+
+    @Query(value = "Select * from sites where `status` = :status Limit 1 ", nativeQuery = true)
+    Optional<Site> findByStatus(String status);
 
 }

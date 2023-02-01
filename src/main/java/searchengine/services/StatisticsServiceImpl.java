@@ -8,6 +8,7 @@ import searchengine.dto.statistics.DetailedStatisticsItem;
 import searchengine.dto.statistics.StatisticsData;
 import searchengine.dto.statistics.StatisticsResponse;
 import searchengine.dto.statistics.TotalStatistics;
+import searchengine.model.Status;
 import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
@@ -28,20 +29,18 @@ public class StatisticsServiceImpl implements StatisticsService {
     public StatisticsResponse getStatistics() {
         TotalStatistics total = new TotalStatistics();
         total.setSites(sites.getSites().size());
-        total.setIndexing(true);
+        total.setIndexing(!WebScraper.isStopped);
         List<DetailedStatisticsItem> detailed = new ArrayList<>();
         List<Site> sitesList = sites.getSites();
         for (int i = 0; i < sitesList.size(); i++) {
             String url = sitesList.get(i).getUrl();
             url = url.endsWith("/")? url.substring(0, url.length() - 1): url;
-            Optional<searchengine.model.Site> optSite = siteRepo
-                    .findByUrl(url);
+            Optional<searchengine.model.Site> optSite = siteRepo.findByUrl(url);
             if (optSite.isEmpty()) {
                 searchengine.model.Site s = SiteMapper.map(sitesList.get(i));
                 siteRepo.saveAndFlush(s);
             }
-            searchengine.model.Site site = siteRepo
-                    .findByUrl(url).get();
+            searchengine.model.Site site = siteRepo.findByUrl(url).get();
             detailed.add(getItem(site, total));
         }
         return getResponse(total, detailed);
