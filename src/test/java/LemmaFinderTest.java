@@ -17,9 +17,10 @@ public class LemmaFinderTest {
     @Test
     @DisplayName("Нахождение лемм и их частотности")
     public void testCollectLemmas(){
-        String text = "Повторное появление леопарда в Осетии позволяет предположить,\n" +
-                "что леопард постоянно обитает в некоторых районах Северного\n" +
-                "Кавказа.";
+        String text = """
+                Повторное появление леопарда в Осетии позволяет предположить,
+                что леопард постоянно обитает в некоторых районах Северного
+                Кавказа.""";
         Map<String, Integer> map1 = Map.of("повторный" ,1,
                 "появление" , 1,
                 "постоянно" , 1,
@@ -34,7 +35,6 @@ public class LemmaFinderTest {
         expected.putAll(map1);
         expected.putAll(map2);
         expected.put("обитать", 1);
-        expected.put("некоторый", 1);
         Assertions.assertEquals(expected, lemmaFinder.collectLemmas(text));
     }
 }

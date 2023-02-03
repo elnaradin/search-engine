@@ -20,6 +20,7 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class StatisticsServiceImpl implements StatisticsService {
+    private final EntitySaver entitySaver;
     private final SitesList sites;
     private final SiteRepository siteRepo;
     private final PageRepository pageRepo;
@@ -32,13 +33,12 @@ public class StatisticsServiceImpl implements StatisticsService {
         total.setIndexing(!WebScraper.isStopped);
         List<DetailedStatisticsItem> detailed = new ArrayList<>();
         List<Site> sitesList = sites.getSites();
-        for (int i = 0; i < sitesList.size(); i++) {
-            String url = sitesList.get(i).getUrl();
-            url = url.endsWith("/")? url.substring(0, url.length() - 1): url;
+        for (Site value : sitesList) {
+            String url = value.getUrl();
+            url = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
             Optional<searchengine.model.Site> optSite = siteRepo.findByUrl(url);
             if (optSite.isEmpty()) {
-                searchengine.model.Site s = SiteMapper.map(sitesList.get(i));
-                siteRepo.saveAndFlush(s);
+                entitySaver.saveSite(value, Status.INDEXED);
             }
             searchengine.model.Site site = siteRepo.findByUrl(url).get();
             detailed.add(getItem(site, total));

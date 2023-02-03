@@ -10,7 +10,7 @@ import java.util.*;
 @Service
 public class LemmaFinder {
     private final LuceneMorphology luceneMorphology = new RussianLuceneMorphology();
-    private  final String[] particlesNames = new String[]{"МЕЖД", "ПРЕДЛ", "СОЮЗ"};
+    private  final String[] particlesNames = new String[]{"МЕЖД", "ПРЕДЛ", "СОЮЗ", "МС"};
 
     public LemmaFinder() throws IOException {
     }
@@ -99,6 +99,7 @@ public class LemmaFinder {
     }
 
     private String[] arrayContainsRussianWords(String text) {
+
         return text.toLowerCase(Locale.ROOT)
                 .replaceAll("([^а-яё\\s])", " ")
                 .trim()

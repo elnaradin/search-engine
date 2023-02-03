@@ -11,6 +11,7 @@ import java.util.Optional;
 
 @Repository
 public interface IndexRepository extends JpaRepository<Index, Integer> {
+
     @Query(value = "SELECT MAX(sum) FROM (SELECT SUM(`rank`) sum " +
             "FROM `indexes` i GROUP BY `page_id`) AS `value`", nativeQuery = true)
     Float getMaxValue();

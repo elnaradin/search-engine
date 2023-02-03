@@ -1,5 +1,8 @@
 package searchengine.services;
 
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -18,22 +21,18 @@ import searchengine.repositories.SiteRepository;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 
 public class WebScraper extends RecursiveAction {
-    protected volatile static boolean isStopped;
+    protected volatile static boolean isStopped = true;
     private final String path;
     private final Site site;
-    @Autowired
     private final SiteRepository siteRepo;
-    @Autowired
     private final PageRepository pageRepo;
     private final JsoupSettings settings;
-    @Autowired
     private final LemmaRepository lemmaRepo;
-    @Autowired
     private final IndexRepository indexRepo;
-    @Autowired
     private final EntitySaver utils;
 
 
@@ -61,7 +60,7 @@ public class WebScraper extends RecursiveAction {
             Document document = getDocument();
             utils.indexAndSavePageToDB(document, site, path);
             Set<WebScraper> actionList = ConcurrentHashMap.newKeySet();
-            Set<String> urls = checkIfStopped(getUrls(document));
+            Set<String> urls = getUrls(document);
             for (String url : urls) {
                 actionList.add(createActions(url));
             }
@@ -71,10 +70,10 @@ public class WebScraper extends RecursiveAction {
         }
     }
 
-    private synchronized Set<String> checkIfStopped(Set<String> urls)
+    private Set<String> checkIfStopped(Set<String> urls)
             throws InterruptedException {
-        synchronized (this) {
-            if (isStopped == true) {
+        if (isStopped == true) {
+            synchronized (this) {
                 while (!urls.isEmpty()) {
                     urls.clear();
                     wait();
@@ -86,45 +85,35 @@ public class WebScraper extends RecursiveAction {
     }
 
 
-    private WebScraper createActions(String url) {
+    private WebScraper createActions(String url) throws InterruptedException {
         String path = url.equals(site.getUrl()) ? "/"
                 : url.replace(site.getUrl(), "");
-        WebScraper task = new WebScraper(
+        WebScraper action = new WebScraper(
                 site, path, siteRepo,
                 pageRepo, settings,
                 lemmaRepo, indexRepo, utils);
-        task.fork();
-        return task;
+        action.fork();
+        return action;
     }
 
     private Document getDocument() throws IOException, InterruptedException {
-        String url = site.getUrl() + path;
-        Thread.sleep(2000);
+        String url = site.getUrl().concat(path);
+        Thread.sleep(500);
         return Jsoup.connect(url)
                 .userAgent(settings.getUserAgent())
                 .referrer(settings.getReferrer())
                 .ignoreHttpErrors(true)
                 .ignoreContentType(true)
                 .followRedirects(false)
-                .timeout(60_000)
                 .get();
     }
 
     private Set<String> getUrls(Document document) {
-        String attribute = "href";
-        Elements elements = document.select("a[href]");
-        Set<String> urls = ConcurrentHashMap.newKeySet();
-        for (Element element : elements) {
-            String url = element.absUrl(attribute);
-            if (!isCorrectPath(url)) {
-                continue;
-            }
-            if (url.endsWith("/")) {
-                url = url.substring(0, url.length() - 1);
-            }
-            urls.add(url);
-        }
-        return urls;
+        String selector = "a[href]";
+        Elements elements = document.select(selector);
+        return elements.stream().map(e -> e.absUrl("href"))
+                .filter(url -> isCorrectPath(url))
+                .collect(Collectors.toSet());
     }
 
 

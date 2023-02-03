@@ -17,7 +17,6 @@ import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
 
 import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ForkJoinPool;
@@ -35,12 +34,8 @@ public class IndexationServiceImpl implements IndexationService {
     private final LemmaRepository lemmaRepo;
     private final IndexRepository indexRepo;
     private final JsoupSettings settings;
-    private final EntitySaver utils;
+    private final EntitySaver entitySaver;
 
-    @PostConstruct
-    private void setStopped(){
-        WebScraper.isStopped = true;
-    }
 
     @Override
     public Response startIndexingAndGetResponse() {
@@ -94,7 +89,9 @@ public class IndexationServiceImpl implements IndexationService {
     private void startIndexing() {
         WebScraper.isStopped = false;
         clearDB();
-        addSitesToDB();
+        for (searchengine.config.Site s : sitesList.getSites()) {
+            entitySaver.saveSite(s, Status.INDEXING);
+        }
         pool = new ForkJoinPool();
         ArrayList<Thread> threads = new ArrayList<>();
         List<Site> sites = siteRepo.findAll();
@@ -102,7 +99,7 @@ public class IndexationServiceImpl implements IndexationService {
             threads.add(new Thread(() -> {
                 pool.invoke(new WebScraper(site, "",
                         siteRepo, pageRepo, settings,
-                        lemmaRepo, indexRepo, utils));
+                        lemmaRepo, indexRepo, entitySaver));
                 setIndexed(site);
             }));
         }
@@ -110,10 +107,8 @@ public class IndexationServiceImpl implements IndexationService {
     }
 
 
-
-
     private boolean siteIsPresent(String url) throws IOException {
-        if (!url.matches("https?://[\\w\\W]+")){
+        if (!url.matches("https?://[\\w\\W]+")) {
             return false;
         }
         if (Jsoup.connect(url).ignoreHttpErrors(true)
@@ -144,17 +139,13 @@ public class IndexationServiceImpl implements IndexationService {
         try {
             Document document = Jsoup.connect(url).get();
             Site site = findSiteByPageURL(url);
-            utils.indexAndSavePageToDB(document, site,
+            entitySaver.indexAndSavePageToDB(document, site,
                     url.replace(site.getUrl(), ""));
         } catch (IOException ex) {
             setFailed(ex.getMessage());
         }
     }
 
-    private void addSitesToDB() {
-        siteRepo.saveAll(SiteMapper
-                .mapAll(sitesList.getSites()));
-    }
 
     private boolean isIndexing() {
         if (pool == null) {
@@ -163,12 +154,11 @@ public class IndexationServiceImpl implements IndexationService {
         return !WebScraper.isStopped;
     }
 
-
     private void stopIndexing() {
         if (!isIndexing()) {
             return;
         }
-        setStopped();
+        WebScraper.isStopped = true;
         pool.shutdownNow();
         setFailed(IS_STOPPED_BY_USER_MESSAGE);
     }
@@ -189,7 +179,7 @@ public class IndexationServiceImpl implements IndexationService {
     private void setFailed(String message) {
         List<Site> sites = siteRepo.findAll();
         try {
-            if(pool.awaitTermination(3_000, TimeUnit.MILLISECONDS)) {
+            if (pool.awaitTermination(3_000, TimeUnit.MILLISECONDS)) {
                 sites.forEach(site -> {
                     site.setStatus(Status.FAILED);
                     site.setLastError(message);
@@ -197,7 +187,9 @@ public class IndexationServiceImpl implements IndexationService {
                 });
             }
         } catch (InterruptedException e) {
-           e.printStackTrace();
+            e.printStackTrace();
         }
     }
+
+
 }

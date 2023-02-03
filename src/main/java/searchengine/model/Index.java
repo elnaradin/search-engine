@@ -11,7 +11,7 @@ import javax.persistence.*;
 public class Index {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "INT")
+    @Column(columnDefinition = "INT", nullable = false)
     private int id;
 
     @JoinColumn(name = "page_id", nullable = false)
@@ -19,7 +19,7 @@ public class Index {
     private Page page;
 
     @JoinColumn(name = "lemma_id", nullable = false)
-    @OneToOne(cascade = CascadeType.MERGE, fetch = FetchType.LAZY, orphanRemoval = true)
+    @OneToOne(cascade = CascadeType.MERGE, fetch = FetchType.LAZY)
     private Lemma lemma;
 
     @Column(name = "`rank`", nullable = false, columnDefinition = "FLOAT")

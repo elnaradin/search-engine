@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 @Getter
 @Setter
 @Component
-@ConfigurationProperties(prefix = "indexing-settings")
+@ConfigurationProperties(prefix = "jsoup-settings")
 public class JsoupSettings {
     private String userAgent;
     private String referrer;

@@ -8,8 +8,7 @@ import javax.persistence.*;
 @Entity
 @Getter
 @Setter
-@Table(name = "pages", uniqueConstraints =
-        {@UniqueConstraint(columnNames = { "site_id", "path "}) })
+@Table(name = "pages")
 public class Page {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -20,7 +19,7 @@ public class Page {
     @ManyToOne(cascade = CascadeType.MERGE, fetch = FetchType.LAZY)
     private Site site;
 
-    @Column(columnDefinition = "TEXT", nullable = false)
+    @Column(columnDefinition = "TEXT NOT NULL, UNIQUE KEY (site_id, path(150))")
     private String path;
 
     @Column(columnDefinition = "INT", nullable = false)
@@ -30,6 +29,5 @@ public class Page {
             "utf8mb4 COLLATE utf8mb4_general_ci",
             nullable = false)
     private String content;
-
 }
 

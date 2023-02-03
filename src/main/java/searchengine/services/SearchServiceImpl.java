@@ -34,7 +34,6 @@ public class SearchServiceImpl implements SearchService {
 
     @Override
     public Response getResponse(String query, String site, Integer offset, Integer limit) {
-        limit = 20;
         List<Site> sites = getSites(site);
         List<Data> dataList = new ArrayList<>();
         Set<String> lemmas = lemmaFinder.getLemmaSet(query
@@ -113,6 +112,7 @@ public class SearchServiceImpl implements SearchService {
         String text = Jsoup.clean(content, Safelist.none())
                 .replaceAll("&nbsp;", " ")
                 .replaceAll("<[^>]*>", " ")
+                .replaceAll("https?://[\\w\\W]\\S+", "")
                 .replaceAll("\\s+", " ");
 
         data.setSnippet(getSnippet(getBoldPhrase(text, lemmas), text));
@@ -227,36 +227,35 @@ public class SearchServiceImpl implements SearchService {
 
     private String getFormattedSentence(String sentence, Set<String> lemmas,
                                         Map<String, Set<String>> lemmasAndWords) {
-        String[] words = sentence
-//                .replaceAll("&nbsp;", " ")
-                .split("\\s");
+        String[] words = sentence.split("\\s");
         StringBuilder formattedSentence = new StringBuilder();
         for (String word : words) {
-            String formattedWord = word.toLowerCase(Locale.ROOT)
-                    .replaceAll("([^а-яё\\-\\s])", " ").strip();
+
             for (String lemma : lemmas) {
                 if (lemmasAndWords == null) {
                     continue;
                 }
-
-                if (lemmasAndWords.get(lemma).stream().anyMatch(formattedWord::equals)) {
-                    String cleanedWord = word.replaceAll("[^\\-а-яA-ЯЁё]", "");
-                    word = word.replace(cleanedWord, boldStart.concat(cleanedWord).concat(boldEnd));
-                }
-                if (formattedWord.contains("-")){
-                    if((lemmasAndWords.get(lemma).stream().map(String::strip).anyMatch(formattedWord::startsWith))){
-                        String cleanedWord = word.substring(0, word.indexOf("-")).replaceAll("[^\\-а-яA-ЯЁё]", "");
-                        word = word.replace(cleanedWord, boldStart.concat(cleanedWord).concat(boldEnd));
-                    }
-                    if((lemmasAndWords.get(lemma).stream().anyMatch(formattedWord::endsWith))){
-                        String cleanedWord = word.substring(word.lastIndexOf("-") + 1).replaceAll("[^\\-а-яA-ЯЁё]", "");
-                        word = word.replace(cleanedWord, boldStart.concat(cleanedWord).concat(boldEnd));
-                    }
-                }
+                word = getWordInBold(word, lemma, lemmasAndWords);
             }
             formattedSentence.append(word).append(" ");
         }
         return formattedSentence.toString();
+    }
+
+    private String getWordInBold(String word, String lemma,
+                                 Map<String, Set<String>> lemmasAndWords) {
+        String[] formattedWord = word
+                .replaceAll("([^А-Яа-яЁё\\-])", " ")
+                .strip()
+                .split("(-| )");
+        for (String part : formattedWord) {
+            if ((lemmasAndWords.get(lemma).stream()
+                    .anyMatch(part::equalsIgnoreCase))) {
+                word = word.replace(part,
+                        boldStart.concat(part).concat(boldEnd));
+            }
+        }
+        return word;
     }
 
     private String getSnippet(String formattedSentence, String text) {
@@ -277,7 +276,7 @@ public class SearchServiceImpl implements SearchService {
 
     private String cutText(int startIndex, int endIndex, String text) {
         int[] distance = getDistance(text, startIndex, endIndex);
-        int substringStart = text.indexOf("\s",
+        int substringStart = text.indexOf(" ",
                 startIndex > distance[0]
                         ? startIndex - distance[0] : startIndex);
         if (substringStart > text.indexOf(boldStart)) {
@@ -287,8 +286,8 @@ public class SearchServiceImpl implements SearchService {
                 ? endIndex + distance[1] : text.length();
         String snippet = text.substring(substringStart,
                 substringEnd).concat("...");
-        if (snippet.length() > 240) {
-            snippet = snippet.substring(0, 240)
+        if (snippet.length() > 260) {
+            snippet = snippet.substring(0, 260)
                     .concat("...");
         }
         return snippet;

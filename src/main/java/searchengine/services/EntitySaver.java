@@ -8,19 +8,15 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.safety.Safelist;
 import org.springframework.stereotype.Service;
-import searchengine.model.Index;
-import searchengine.model.Lemma;
-import searchengine.model.Page;
-import searchengine.model.Site;
+import searchengine.config.SitesList;
+import searchengine.model.*;
 import searchengine.repositories.IndexRepository;
 import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
 
 import java.io.IOException;
-import java.util.Date;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 
 @Getter
@@ -28,31 +24,42 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class EntitySaver {
+    private final SitesList sites;
     private final SiteRepository siteRepo;
     private final PageRepository pageRepo;
     private final LemmaRepository lemmaRepo;
     private final IndexRepository indexRepo;
     private final LemmaFinder lemmaFinder;
 
-    public void indexAndSavePageToDB(Document document, Site site, String path) throws IOException {
-        Optional<Page> optPage = pageRepo
-                .findPage(path, site);
-        Page page = optPage.orElseGet(() -> PageBuilder.map(site, document, path));
+
+
+    protected void indexAndSavePageToDB(Document document, Site site, String path) throws IOException {
+        Page page = createPage(site, document, path);
         Optional<Site> optSite = siteRepo
                 .findByUrl(site.getUrl());
         optSite.get().setStatusTime(new Date());
 
-        if (!WebScraper.isStopped) {
-            pageRepo.saveAndFlush(page);
-            siteRepo.saveAndFlush(optSite.get());
-        } else {
-            return;
-        }
-        saveLemmasAndIndexes(page);
+            if (!WebScraper.isStopped) {
+                pageRepo.saveAndFlush(page);
+                siteRepo.saveAndFlush(optSite.get());
+            } else {
+                return;
+            }
+            saveLemmasAndIndexes(page);
+
+    }
+
+    private Page createPage(Site site, Document document, String path) {
+        Page page = new Page();
+        int code = document.connection().response().statusCode();
+        page.setSite(site);
+        page.setCode(code);
+        page.setPath(path.isBlank() ? "/" : path);
+        page.setContent(document.html());
+        return page;
     }
 
     private void saveLemmasAndIndexes(Page page) {
-
         if (page.getCode() >= 400) {
             return;
         }
@@ -77,26 +84,43 @@ public class EntitySaver {
             lemma.setSite(page.getSite());
             lemma.setFrequency(1);
         }
-        if (!WebScraper.isStopped) {
-            lemmaRepo.saveAndFlush(lemma);
-        } else {
-            return;
-        }
+            if (!WebScraper.isStopped) {
+                lemmaRepo.saveAndFlush(lemma);
+            } else {
+                return;
+            }
         saveIndexes(lemma, page, rank);
+
     }
 
     private void saveIndexes(Lemma lemma, Page page, float rank) {
-        Optional<Index> optIndex = indexRepo
-                .findByLemmaAndPage(lemma, page);
-        Index index = new Index();
-        if (optIndex.isPresent()) {
-            index = optIndex.get();
-        }
-        index.setLemma(lemma);
-        index.setPage(page);
-        index.setRank(rank);
+            Optional<Index> optIndex = indexRepo
+                    .findByLemmaAndPage(lemma, page);
+            Index index = new Index();
+            if (optIndex.isPresent()) {
+                index = optIndex.get();
+            }
+            index.setLemma(lemma);
+            index.setPage(page);
+            index.setRank(rank);
         if (!WebScraper.isStopped) {
-            indexRepo.saveAndFlush(index);
+            indexRepo.save(index);
         }
+    }
+
+    protected void saveSite(searchengine.config.Site s, Status status) {
+        String url = removeLastDash(s.getUrl());
+        Site site = new Site();
+        site.setUrl(url);
+        site.setName(s.getName());
+        site.setStatusTime(new Date());
+        site.setStatus(status);
+        siteRepo.saveAndFlush(site);
+    }
+
+    private String removeLastDash(String url) {
+        return url.trim().endsWith("/")
+                ? url.substring(0, url.length() - 1)
+                : url;
     }
 }
