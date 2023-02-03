@@ -22,7 +22,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class SearchServiceImpl implements SearchService {
-    private Float maxValue;
+    private Float maxRelevanceValue;
     private final String boldStart = "<b>";
     private final String boldEnd = "</b>";
     private final SiteRepository siteRepo;
@@ -38,30 +38,35 @@ public class SearchServiceImpl implements SearchService {
         List<Data> dataList = new ArrayList<>();
         Set<String> lemmas = lemmaFinder.getLemmaSet(query
                 .replaceAll("[Ёё]", "е"));
-        Set<Page> pages = getPages(lemmas, sites, offset, limit);
+        List<Lemma> sortedLemmas = getSortedLemmas(lemmas);
+        Set<Page> pages = getPages(sortedLemmas, sites, offset, limit);
         try {
             if (pages != null) {
                 for (Page page : pages) {
                     String content = page.getContent();
-                    dataList.add(getData(page, content, lemmas));
+                    dataList.add(getData(page, content, sortedLemmas));
                 }
             }
             dataList.sort(Collections.reverseOrder());
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return handleErrors(site, lemmas, pages, dataList, query);
+        return handleErrors(site, lemmas, sortedLemmas, pages, dataList, query);
     }
 
-    private Response handleErrors(String site, Set<String> lemmas,
+    private Response handleErrors(String site, Set<String> lemmas, List<Lemma> sortedLemmas,
                                   Set<Page> pages, List<Data> dataList, String query) {
         Response response = new Response();
         if (site != null && !siteIsPresent(site)) {
             response.setError(errors[0]);
             return response;
         }
-        if (lemmas.isEmpty()) {
+        if (CollectionUtils.isEmpty(lemmas)) {
             response.setError(errors[1]);
+            return response;
+        }
+        if (CollectionUtils.isEmpty(sortedLemmas)) {
+            response.setError(errors[2]);
             return response;
         }
         if (pages == null) {
@@ -102,7 +107,7 @@ public class SearchServiceImpl implements SearchService {
 
 
     private Data getData(Page page, String content,
-                         Set<String> lemmas) throws IOException {
+                         List<Lemma> sortedLemmas) throws IOException {
         Data data = new Data();
         data.setSite(page.getSite().getUrl());
         data.setSiteName(page.getSite().getName());
@@ -115,7 +120,7 @@ public class SearchServiceImpl implements SearchService {
                 .replaceAll("https?://[\\w\\W]\\S+", "")
                 .replaceAll("\\s+", " ");
 
-        data.setSnippet(getSnippet(getBoldPhrase(text, lemmas), text));
+        data.setSnippet(getSnippet(getBoldPhrase(text, sortedLemmas), text));
         return data;
     }
 
@@ -131,16 +136,15 @@ public class SearchServiceImpl implements SearchService {
     }
 
     private float getRelevance(Page page) {
-        if (maxValue == null) {
-            maxValue = indexRepo.getMaxValue();
+        if (maxRelevanceValue == null) {
+            maxRelevanceValue = indexRepo.getMaxValue();
         }
         return indexRepo
-                .getRelevance(page, maxValue);
+                .getRelevance(page, maxRelevanceValue);
     }
 
-    private Set<Page> getPages(Set<String> lemmas, List<Site> sites, int offset, int limit) {
-        List<Lemma> sortedLemmas = getSortedLemmas(lemmas);
-        if (sortedLemmas == null) {
+    private Set<Page> getPages(List<Lemma> sortedLemmas, List<Site> sites, int offset, int limit) {
+        if(CollectionUtils.isEmpty(sortedLemmas)){
             return null;
         }
         Set<Page> pages = pageRepo.getALLPages(sortedLemmas, sites);
@@ -160,18 +164,17 @@ public class SearchServiceImpl implements SearchService {
         if (sortedLemmas.size() < lemmas.size()) {
             return null;
         }
-        for (int i = 0; i < sortedLemmas.size(); i++) {
-            if (sortedLemmas.get(i).getFrequency() > 2000) {
-                sortedLemmas.remove(sortedLemmas.get(i));
+        List<Lemma> lemmasToRemove = new Vector<>();
+        for (Lemma lemma : sortedLemmas) {
+            if (lemma.getFrequency() > 2000) {
+                lemmasToRemove.add(lemma);
             }
         }
-        if (CollectionUtils.isEmpty(sortedLemmas)) {
-            return null;
-        }
+        sortedLemmas.removeAll(lemmasToRemove);
         return sortedLemmas;
     }
 
-    private String getBoldPhrase(String text, Set<String> lemmas) {
+    private String getBoldPhrase(String text, List<Lemma> sortedLemmas) {
         Map<String, Integer> snippets = new LinkedHashMap<>();
 
         Map<String, Set<String>> lemmasAndWords =
@@ -179,7 +182,7 @@ public class SearchServiceImpl implements SearchService {
         String[] sentences = text.split("\\.");
         for (String sentence : sentences) {
 
-            String formattedSentence = getFormattedSentence(sentence, lemmas, lemmasAndWords);
+            String formattedSentence = getFormattedSentence(sentence, sortedLemmas, lemmasAndWords);
             if (!formattedSentence.contains(boldStart)) {
                 continue;
             }
@@ -225,17 +228,17 @@ public class SearchServiceImpl implements SearchService {
     }
 
 
-    private String getFormattedSentence(String sentence, Set<String> lemmas,
+    private String getFormattedSentence(String sentence, List<Lemma> sortedLemmas,
                                         Map<String, Set<String>> lemmasAndWords) {
         String[] words = sentence.split("\\s");
         StringBuilder formattedSentence = new StringBuilder();
         for (String word : words) {
 
-            for (String lemma : lemmas) {
+            for (Lemma lemma : sortedLemmas) {
                 if (lemmasAndWords == null) {
                     continue;
                 }
-                word = getWordInBold(word, lemma, lemmasAndWords);
+                word = getWordInBold(word, lemma.getLemma(), lemmasAndWords);
             }
             formattedSentence.append(word).append(" ");
         }
@@ -246,8 +249,8 @@ public class SearchServiceImpl implements SearchService {
                                  Map<String, Set<String>> lemmasAndWords) {
         String[] formattedWord = word
                 .replaceAll("([^А-Яа-яЁё\\-])", " ")
-                .strip()
-                .split("(-| )");
+                .trim()
+                .split("[- ]");
         for (String part : formattedWord) {
             if ((lemmasAndWords.get(lemma).stream()
                     .anyMatch(part::equalsIgnoreCase))) {

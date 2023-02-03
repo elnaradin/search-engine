@@ -32,20 +32,20 @@ public class EntitySaver {
     private final LemmaFinder lemmaFinder;
 
 
-
     protected void indexAndSavePageToDB(Document document, Site site, String path) throws IOException {
         Page page = createPage(site, document, path);
         Optional<Site> optSite = siteRepo
                 .findByUrl(site.getUrl());
         optSite.get().setStatusTime(new Date());
-
-            if (!WebScraper.isStopped) {
+        siteRepo.saveAndFlush(optSite.get());
+        if (!WebScraper.isStopped) {
+            synchronized (this) {
                 pageRepo.saveAndFlush(page);
-                siteRepo.saveAndFlush(optSite.get());
-            } else {
-                return;
             }
-            saveLemmasAndIndexes(page);
+        } else {
+            return;
+        }
+        saveLemmasAndIndexes(page);
 
     }
 
@@ -84,27 +84,30 @@ public class EntitySaver {
             lemma.setSite(page.getSite());
             lemma.setFrequency(1);
         }
-            if (!WebScraper.isStopped) {
+        if (!WebScraper.isStopped) {
+            synchronized (this) {
                 lemmaRepo.saveAndFlush(lemma);
-            } else {
-                return;
             }
+        } else {
+            return;
+        }
         saveIndexes(lemma, page, rank);
-
     }
 
     private void saveIndexes(Lemma lemma, Page page, float rank) {
-            Optional<Index> optIndex = indexRepo
-                    .findByLemmaAndPage(lemma, page);
-            Index index = new Index();
-            if (optIndex.isPresent()) {
-                index = optIndex.get();
-            }
-            index.setLemma(lemma);
-            index.setPage(page);
-            index.setRank(rank);
+        Optional<Index> optIndex = indexRepo
+                .findByLemmaAndPage(lemma, page);
+        Index index = new Index();
+        if (optIndex.isPresent()) {
+            index = optIndex.get();
+        }
+        index.setLemma(lemma);
+        index.setPage(page);
+        index.setRank(rank);
         if (!WebScraper.isStopped) {
-            indexRepo.save(index);
+            synchronized (this) {
+                indexRepo.saveAndFlush(index);
+            }
         }
     }
 

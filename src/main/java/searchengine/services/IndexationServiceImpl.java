@@ -16,11 +16,9 @@ import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
 
-import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 @Service
 @RequiredArgsConstructor
@@ -98,8 +96,7 @@ public class IndexationServiceImpl implements IndexationService {
         for (Site site : sites) {
             threads.add(new Thread(() -> {
                 pool.invoke(new WebScraper(site, "",
-                        siteRepo, pageRepo, settings,
-                        lemmaRepo, indexRepo, entitySaver));
+                        siteRepo, pageRepo, settings, entitySaver));
                 setIndexed(site);
             }));
         }

@@ -31,22 +31,17 @@ public class WebScraper extends RecursiveAction {
     private final SiteRepository siteRepo;
     private final PageRepository pageRepo;
     private final JsoupSettings settings;
-    private final LemmaRepository lemmaRepo;
-    private final IndexRepository indexRepo;
     private final EntitySaver utils;
 
 
     public WebScraper(Site site, String path, SiteRepository siteRepo,
                       PageRepository pageRepo, JsoupSettings settings,
-                      LemmaRepository lemmaRepo, IndexRepository indexRepo,
                       EntitySaver utils) {
         this.site = site;
         this.path = path;
         this.siteRepo = siteRepo;
         this.pageRepo = pageRepo;
         this.settings = settings;
-        this.lemmaRepo = lemmaRepo;
-        this.indexRepo = indexRepo;
         this.utils = utils;
     }
 
@@ -90,13 +85,12 @@ public class WebScraper extends RecursiveAction {
                 : url.replace(site.getUrl(), "");
         WebScraper action = new WebScraper(
                 site, path, siteRepo,
-                pageRepo, settings,
-                lemmaRepo, indexRepo, utils);
+                pageRepo, settings, utils);
         action.fork();
         return action;
     }
 
-    private Document getDocument() throws IOException, InterruptedException {
+    private synchronized Document getDocument() throws IOException, InterruptedException {
         String url = site.getUrl().concat(path);
         Thread.sleep(500);
         return Jsoup.connect(url)

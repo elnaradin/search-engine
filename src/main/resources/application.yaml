@@ -10,12 +10,10 @@ indexing-settings:
       name: PlayBack.Ru
 #    - url: https://volochek.life
 #      name: volochek.life
-    - url: https://et-cetera.ru/mobile/
-      name: et-cetera.ru
     - url: https://www.lutherancathedral.ru/
       name: Luther Cathedral
-#    - url: https://nvsu.ru
-#      name: nvsu.ru
+##    - url: https://nvsu.ru
+##      name: nvsu.ru
     - url: https://dombulgakova.ru
       name: Дом Булгакова
     - url: https://nikoartgallery.com/
@@ -40,3 +38,4 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+
