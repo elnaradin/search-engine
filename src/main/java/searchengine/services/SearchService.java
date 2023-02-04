@@ -14,4 +14,5 @@ public interface SearchService {
                          String site,
                          Integer offset,
                          Integer limit);
+
 }

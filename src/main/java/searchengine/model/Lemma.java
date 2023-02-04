@@ -9,7 +9,7 @@ import javax.persistence.*;
 @Getter
 @Setter
 @Table(name = "lemmas")
-public class Lemma implements Comparable {
+public class Lemma implements Comparable<Lemma> {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(columnDefinition = "INT", nullable = false)
@@ -25,8 +25,8 @@ public class Lemma implements Comparable {
     private int frequency;
 
     @Override
-    public int compareTo(Object o) {
+    public int compareTo(Lemma o) {
         return Float.compare(getFrequency(),
-                ((Lemma) o).getFrequency());
+                 o.getFrequency());
     }
 }

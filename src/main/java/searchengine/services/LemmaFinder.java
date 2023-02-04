@@ -10,7 +10,7 @@ import java.util.*;
 @Service
 public class LemmaFinder {
     private final LuceneMorphology luceneMorphology = new RussianLuceneMorphology();
-    private  final String[] particlesNames = new String[]{"МЕЖД", "ПРЕДЛ", "СОЮЗ", "МС"};
+    private  final String[] particlesNames = new String[]{"МЕЖД", "ПРЕДЛ", "СОЮЗ"};
 
     public LemmaFinder() throws IOException {
     }
@@ -19,7 +19,7 @@ public class LemmaFinder {
         String[] words = arrayContainsRussianWords(text);
         HashMap<String, Integer> lemmas = new HashMap<>();
         for (String word : words) {
-            if (!isProperWord(word)){
+            if (isWrongWord(word)){
                 continue;
             }
             List<String> normalForms = luceneMorphology.getNormalForms(word);
@@ -41,7 +41,7 @@ public class LemmaFinder {
         String[] words = arrayContainsRussianWords(text);
         Set<String> lemmas = new HashSet<>();
         for (String word : words) {
-            if (!isProperWord(word)){
+            if (isWrongWord(word)){
                 continue;
             }
             List<String> normalForms = luceneMorphology.getNormalForms(word);
@@ -58,7 +58,7 @@ public class LemmaFinder {
         String[] words = arrayContainsRussianWords(text);
         HashMap<String, Set<String>> lemmas = new HashMap<>();
         for (String word : words) {
-            if (!isProperWord(word)){
+            if (isWrongWord(word)){
                 continue;
             }
             List<String> normalForms = luceneMorphology.getNormalForms(word);
@@ -81,12 +81,12 @@ public class LemmaFinder {
     private boolean anyWordBaseBelongToParticle(List<String> wordBaseForms) {
         return wordBaseForms.stream().anyMatch(this::hasParticleProperty);
     }
-    private boolean isProperWord(String word){
+    private boolean isWrongWord(String word){
         if (word.isBlank()) {
-            return false;
+            return true;
         }
         List<String> wordBaseForms = luceneMorphology.getMorphInfo(word);
-        return !anyWordBaseBelongToParticle(wordBaseForms);
+        return anyWordBaseBelongToParticle(wordBaseForms);
     }
 
     private boolean hasParticleProperty(String wordBase) {

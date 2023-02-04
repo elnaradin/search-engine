@@ -84,7 +84,7 @@ public class IndexationServiceImpl implements IndexationService {
         siteRepo.deleteAllInBatch();
     }
 
-    private void startIndexing() {
+    private void startIndexing(){
         WebScraper.isStopped = false;
         clearDB();
         for (searchengine.config.Site s : sitesList.getSites()) {
@@ -136,19 +136,21 @@ public class IndexationServiceImpl implements IndexationService {
         try {
             Document document = Jsoup.connect(url).get();
             Site site = findSiteByPageURL(url);
-            entitySaver.indexAndSavePageToDB(document, site,
-                    url.replace(site.getUrl(), ""));
+            if(site != null) {
+                entitySaver.indexAndSavePageToDB(document, site,
+                        url.replace(site.getUrl(), ""));
+            }
         } catch (IOException ex) {
             setFailed(ex.getMessage());
         }
     }
 
 
-    private boolean isIndexing() {
+    public boolean isIndexing() {
         if (pool == null) {
             return false;
         }
-        return !WebScraper.isStopped;
+        return !pool.isQuiescent();
     }
 
     private void stopIndexing() {
@@ -168,6 +170,8 @@ public class IndexationServiceImpl implements IndexationService {
             if (optSite.isPresent() && !optSite.get()
                     .getStatus().equals(Status.FAILED)) {
                 optSite.get().setStatus(Status.INDEXED);
+                optSite.get().setStatusTime(new Date());
+                optSite.get().setLastError(null);
                 siteRepo.saveAndFlush(optSite.get());
             }
         }
@@ -187,6 +191,4 @@ public class IndexationServiceImpl implements IndexationService {
             e.printStackTrace();
         }
     }
-
-
 }

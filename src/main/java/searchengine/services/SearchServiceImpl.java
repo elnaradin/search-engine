@@ -16,7 +16,6 @@ import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
 
-import java.io.IOException;
 import java.util.*;
 
 @Service
@@ -33,24 +32,21 @@ public class SearchServiceImpl implements SearchService {
     private final LemmaFinder lemmaFinder;
 
     @Override
-    public Response getResponse(String query, String site, Integer offset, Integer limit) {
+    public Response getResponse(String query, String site, Integer offset,
+                                Integer limit) {
         List<Site> sites = getSites(site);
         List<Data> dataList = new ArrayList<>();
         Set<String> lemmas = lemmaFinder.getLemmaSet(query
                 .replaceAll("[Ёё]", "е"));
         List<Lemma> sortedLemmas = getSortedLemmas(lemmas);
         Set<Page> pages = getPages(sortedLemmas, sites, offset, limit);
-        try {
-            if (pages != null) {
-                for (Page page : pages) {
-                    String content = page.getContent();
-                    dataList.add(getData(page, content, sortedLemmas));
-                }
+        if (pages != null) {
+            for (Page page : pages) {
+                String content = page.getContent();
+                dataList.add(getData(page, content, sortedLemmas));
             }
-            dataList.sort(Collections.reverseOrder());
-        } catch (IOException e) {
-            e.printStackTrace();
         }
+        dataList.sort(Collections.reverseOrder());
         return handleErrors(site, lemmas, sortedLemmas, pages, dataList, query);
     }
 
@@ -107,7 +103,7 @@ public class SearchServiceImpl implements SearchService {
 
 
     private Data getData(Page page, String content,
-                         List<Lemma> sortedLemmas) throws IOException {
+                         List<Lemma> sortedLemmas) {
         Data data = new Data();
         data.setSite(page.getSite().getUrl());
         data.setSiteName(page.getSite().getName());
@@ -115,11 +111,12 @@ public class SearchServiceImpl implements SearchService {
         data.setTitle(getTitle(content));
         data.setRelevance(getRelevance(page));
         String text = Jsoup.clean(content, Safelist.none())
+                .replaceAll("Ё", "Е")
+                .replaceAll("ё", "е")
                 .replaceAll("&nbsp;", " ")
                 .replaceAll("<[^>]*>", " ")
                 .replaceAll("https?://[\\w\\W]\\S+", "")
                 .replaceAll("\\s+", " ");
-
         data.setSnippet(getSnippet(getBoldPhrase(text, sortedLemmas), text));
         return data;
     }
@@ -144,7 +141,7 @@ public class SearchServiceImpl implements SearchService {
     }
 
     private Set<Page> getPages(List<Lemma> sortedLemmas, List<Site> sites, int offset, int limit) {
-        if(CollectionUtils.isEmpty(sortedLemmas)){
+        if (CollectionUtils.isEmpty(sortedLemmas)) {
             return null;
         }
         Set<Page> pages = pageRepo.getALLPages(sortedLemmas, sites);
@@ -182,7 +179,8 @@ public class SearchServiceImpl implements SearchService {
         String[] sentences = text.split("\\.");
         for (String sentence : sentences) {
 
-            String formattedSentence = getFormattedSentence(sentence, sortedLemmas, lemmasAndWords);
+            String formattedSentence = getFormattedSentence(sentence,
+                    sortedLemmas, lemmasAndWords);
             if (!formattedSentence.contains(boldStart)) {
                 continue;
             }
@@ -289,8 +287,8 @@ public class SearchServiceImpl implements SearchService {
                 ? endIndex + distance[1] : text.length();
         String snippet = text.substring(substringStart,
                 substringEnd).concat("...");
-        if (snippet.length() > 260) {
-            snippet = snippet.substring(0, 260)
+        if (snippet.length() > 250) {
+            snippet = snippet.substring(0, 250)
                     .concat("...");
         }
         return snippet;

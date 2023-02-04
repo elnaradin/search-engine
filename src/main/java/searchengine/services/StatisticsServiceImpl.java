@@ -20,6 +20,7 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class StatisticsServiceImpl implements StatisticsService {
+    private final IndexationService indexationService;
     private final EntitySaver entitySaver;
     private final SitesList sites;
     private final SiteRepository siteRepo;
@@ -30,7 +31,7 @@ public class StatisticsServiceImpl implements StatisticsService {
     public StatisticsResponse getStatistics() {
         TotalStatistics total = new TotalStatistics();
         total.setSites(sites.getSites().size());
-        total.setIndexing(!WebScraper.isStopped);
+        total.setIndexing(indexationService.isIndexing());
         List<DetailedStatisticsItem> detailed = new ArrayList<>();
         List<Site> sitesList = sites.getSites();
         for (Site value : sitesList) {

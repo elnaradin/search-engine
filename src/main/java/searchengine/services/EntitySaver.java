@@ -7,6 +7,7 @@ import lombok.Setter;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.safety.Safelist;
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 import searchengine.config.SitesList;
 import searchengine.model.*;
@@ -23,6 +24,7 @@ import java.util.*;
 @Setter
 @Service
 @RequiredArgsConstructor
+@Scope("prototype")
 public class EntitySaver {
     private final SitesList sites;
     private final SiteRepository siteRepo;
@@ -32,21 +34,19 @@ public class EntitySaver {
     private final LemmaFinder lemmaFinder;
 
 
-    protected void indexAndSavePageToDB(Document document, Site site, String path) throws IOException {
+    protected void indexAndSavePageToDB(Document document, Site site,
+                                        String path) throws IOException {
         Page page = createPage(site, document, path);
         Optional<Site> optSite = siteRepo
                 .findByUrl(site.getUrl());
-        optSite.get().setStatusTime(new Date());
-        siteRepo.saveAndFlush(optSite.get());
-        if (!WebScraper.isStopped) {
-            synchronized (this) {
-                pageRepo.saveAndFlush(page);
-            }
-        } else {
-            return;
+        if (optSite.isPresent()) {
+            optSite.get().setStatusTime(new Date());
+            siteRepo.saveAndFlush(optSite.get());
         }
-        saveLemmasAndIndexes(page);
-
+        if (!WebScraper.isStopped) {
+            pageRepo.saveAndFlush(page);
+            saveLemmasAndIndexes(page);
+        }
     }
 
     private Page createPage(Site site, Document document, String path) {
@@ -71,8 +71,7 @@ public class EntitySaver {
         lemmaSet.forEach((l, r) -> saveLemmas(l, r, page));
     }
 
-    private void saveLemmas(String l, float rank,
-                            Page page) {
+    private void saveLemmas(String l, float rank, Page page) {
         Lemma lemma = new Lemma();
         Optional<Lemma> optLemma = lemmaRepo.findByLemma(l);
         if (optLemma.isPresent()) {
@@ -88,10 +87,8 @@ public class EntitySaver {
             synchronized (this) {
                 lemmaRepo.saveAndFlush(lemma);
             }
-        } else {
-            return;
+            saveIndexes(lemma, page, rank);
         }
-        saveIndexes(lemma, page, rank);
     }
 
     private void saveIndexes(Lemma lemma, Page page, float rank) {

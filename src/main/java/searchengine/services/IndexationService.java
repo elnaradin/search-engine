@@ -13,6 +13,8 @@ public interface IndexationService {
     Response stopIndexingAndGetResponse();
     Response indexPageAndGetIndexPageResponse(String url);
 
+    boolean isIndexing();
+
 
 
 

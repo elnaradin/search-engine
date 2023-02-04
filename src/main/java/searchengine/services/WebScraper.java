@@ -49,34 +49,22 @@ public class WebScraper extends RecursiveAction {
     protected void compute() {
         try {
             if (pageRepo.findByPathAndSite(path, site)
-                    .isPresent()) {
+                    .isPresent() || isStopped == true) {
                 return;
             }
             Document document = getDocument();
             utils.indexAndSavePageToDB(document, site, path);
             Set<WebScraper> actionList = ConcurrentHashMap.newKeySet();
-            Set<String> urls = getUrls(document);
+
+            Set<String> urls = (getUrls(document));
             for (String url : urls) {
                 actionList.add(createActions(url));
             }
             actionList.forEach(ForkJoinTask::join);
         } catch (Exception e) {
+            e.printStackTrace();
             setErrorToSite();
         }
-    }
-
-    private Set<String> checkIfStopped(Set<String> urls)
-            throws InterruptedException {
-        if (isStopped == true) {
-            synchronized (this) {
-                while (!urls.isEmpty()) {
-                    urls.clear();
-                    wait();
-                }
-                notify();
-            }
-        }
-        return urls;
     }
 
 
@@ -90,7 +78,8 @@ public class WebScraper extends RecursiveAction {
         return action;
     }
 
-    private synchronized Document getDocument() throws IOException, InterruptedException {
+    private synchronized Document getDocument()
+            throws IOException, InterruptedException {
         String url = site.getUrl().concat(path);
         Thread.sleep(500);
         return Jsoup.connect(url)
