@@ -1,4 +1,4 @@
-package searchengine.services;
+package searchengine.services.search;
 
 import lombok.RequiredArgsConstructor;
 import org.jsoup.Jsoup;
@@ -15,6 +15,7 @@ import searchengine.repositories.IndexRepository;
 import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
+import searchengine.services.indexation.LemmaFinder;
 
 import java.util.*;
 
@@ -92,7 +93,7 @@ public class SearchServiceImpl implements SearchService {
 
     private List<Site> getSites(String site) {
         List<Site> sites = new ArrayList<>();
-        Optional<Site> optSite = siteRepo.findByUrl(site);
+        Optional<Site> optSite = siteRepo.findFirstByUrl(site);
         if (site != null && optSite.isPresent()) {
             sites.add(optSite.get());
         } else {
@@ -111,8 +112,6 @@ public class SearchServiceImpl implements SearchService {
         data.setTitle(getTitle(content));
         data.setRelevance(getRelevance(page));
         String text = Jsoup.clean(content, Safelist.none())
-                .replaceAll("Ё", "Е")
-                .replaceAll("ё", "е")
                 .replaceAll("&nbsp;", " ")
                 .replaceAll("<[^>]*>", " ")
                 .replaceAll("https?://[\\w\\W]\\S+", "")
@@ -140,7 +139,8 @@ public class SearchServiceImpl implements SearchService {
                 .getRelevance(page, maxRelevanceValue);
     }
 
-    private Set<Page> getPages(List<Lemma> sortedLemmas, List<Site> sites, int offset, int limit) {
+    private Set<Page> getPages(List<Lemma> sortedLemmas, List<Site> sites,
+                               int offset, int limit) {
         if (CollectionUtils.isEmpty(sortedLemmas)) {
             return null;
         }
@@ -176,9 +176,8 @@ public class SearchServiceImpl implements SearchService {
 
         Map<String, Set<String>> lemmasAndWords =
                 lemmaFinder.getTextInLemmas(text);
-        String[] sentences = text.split("\\.");
+        String[] sentences = text.split("[.?!]");
         for (String sentence : sentences) {
-
             String formattedSentence = getFormattedSentence(sentence,
                     sortedLemmas, lemmasAndWords);
             if (!formattedSentence.contains(boldStart)) {
@@ -194,9 +193,8 @@ public class SearchServiceImpl implements SearchService {
         String[] snippetWords = formattedSentence.split(" ");
         for (String w : snippetWords) {
             if (w.contains(boldStart)) {
-                int length = formattedSentence
-                        .substring(formattedSentence.indexOf(boldStart)
-                                + boldStart.length(), formattedSentence
+                int length = formattedSentence.substring(formattedSentence
+                        .indexOf(boldStart) + boldStart.length(), formattedSentence
                                 .indexOf(boldEnd)).length();
                 if (snippets.containsKey(formattedSentence)) {
                     snippets.put(formattedSentence,
@@ -251,7 +249,8 @@ public class SearchServiceImpl implements SearchService {
                 .split("[- ]");
         for (String part : formattedWord) {
             if ((lemmasAndWords.get(lemma).stream()
-                    .anyMatch(part::equalsIgnoreCase))) {
+                    .anyMatch(part.replaceAll("Ё", "Е")
+                            .replaceAll("ё", "е")::equalsIgnoreCase))) {
                 word = word.replace(part,
                         boldStart.concat(part).concat(boldEnd));
             }

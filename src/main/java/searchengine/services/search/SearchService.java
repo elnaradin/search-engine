@@ -1,4 +1,4 @@
-package searchengine.services;
+package searchengine.services.search;
 
 import searchengine.dto.statistics.Response;
 
@@ -7,7 +7,7 @@ public interface SearchService {
             "Данного сайта нет в списке",
             "Запрос введен некорректно",
             "Страниц, удовлетворяющих запрос, нет, " +
-                    "либо слова в запросе встречаются слишком часто",
+                    "или слова в запросе встречаются слишком часто",
             "Введен пустой запрос"};
 
     Response getResponse(String query,

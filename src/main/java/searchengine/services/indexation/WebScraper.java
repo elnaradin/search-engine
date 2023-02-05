@@ -1,20 +1,12 @@
-package searchengine.services;
+package searchengine.services.indexation;
 
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-import org.springframework.beans.factory.BeanCreationNotAllowedException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.orm.jpa.JpaSystemException;
 import searchengine.config.JsoupSettings;
 import searchengine.model.*;
 
-import searchengine.repositories.IndexRepository;
-import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
 
@@ -48,8 +40,8 @@ public class WebScraper extends RecursiveAction {
     @Override
     protected void compute() {
         try {
-            if (pageRepo.findByPathAndSite(path, site)
-                    .isPresent() || isStopped == true) {
+            if (pageRepo.existsByPathAndSite(path, site)
+                    || isStopped == true) {
                 return;
             }
             Document document = getDocument();
@@ -61,9 +53,10 @@ public class WebScraper extends RecursiveAction {
                 actionList.add(createActions(url));
             }
             actionList.forEach(ForkJoinTask::join);
+        } catch (CancellationException ignore) {
         } catch (Exception e) {
             e.printStackTrace();
-            setErrorToSite();
+            setErrorToSite(e);
         }
     }
 
@@ -110,10 +103,10 @@ public class WebScraper extends RecursiveAction {
         return !url.matches(regex);
     }
 
-    private void setErrorToSite() {
-        Optional<Site> optSite = siteRepo.findByUrl(site.getUrl());
+    private void setErrorToSite(Exception e) {
+        Optional<Site> optSite = siteRepo.findFirstByUrl(site.getUrl());
         if (optSite.isPresent()) {
-            optSite.get().setLastError("Ошибка в процессе обхода сайта");
+            optSite.get().setLastError(optSite.get().getLastError() + " / " + e.getMessage());
             siteRepo.saveAndFlush(optSite.get());
         }
     }

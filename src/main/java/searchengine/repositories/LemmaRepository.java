@@ -13,9 +13,7 @@ import java.util.Set;
 @Repository
 public interface LemmaRepository extends JpaRepository<Lemma, Integer> {
 
-    @Query(value = "SELECT * FROM lemmas " +
-            "WHERE `lemma` = :lemma  LIMIT 1", nativeQuery = true)
-    Optional<Lemma> findByLemma(String lemma);
+    Optional<Lemma> findFirstByLemma(String lemma);
 
     @Query(value = "SELECT * FROM lemmas " +
             "WHERE `lemma` IN :lemmaSet " +

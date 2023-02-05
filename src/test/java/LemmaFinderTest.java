@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import searchengine.Application;
-import searchengine.services.LemmaFinder;
+import searchengine.services.indexation.LemmaFinder;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,6 +34,7 @@ public class LemmaFinderTest {
         HashMap<String, Integer> expected = new HashMap<>();
         expected.putAll(map1);
         expected.putAll(map2);
+        expected.put("некоторый", 1);
         expected.put("обитать", 1);
         Assertions.assertEquals(expected, lemmaFinder.collectLemmas(text));
     }

@@ -19,7 +19,7 @@ public class Page {
     @ManyToOne(cascade = CascadeType.MERGE, fetch = FetchType.LAZY)
     private Site site;
 
-    @Column(columnDefinition = "TEXT NOT NULL, UNIQUE KEY (site_id, path(150))")
+    @Column(columnDefinition = "TEXT NOT NULL, INDEX (path(150))")
     private String path;
 
     @Column(columnDefinition = "INT", nullable = false)

@@ -1,4 +1,4 @@
-package searchengine.services;
+package searchengine.services.indexation;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -7,9 +7,8 @@ import lombok.Setter;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.safety.Safelist;
-import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
-import searchengine.config.SitesList;
+import searchengine.config.SiteConfig;
 import searchengine.model.*;
 import searchengine.repositories.IndexRepository;
 import searchengine.repositories.LemmaRepository;
@@ -18,38 +17,43 @@ import searchengine.repositories.SiteRepository;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 @Getter
 @Setter
 @Service
 @RequiredArgsConstructor
-@Scope("prototype")
 public class EntitySaver {
-    private final SitesList sites;
     private final SiteRepository siteRepo;
     private final PageRepository pageRepo;
     private final LemmaRepository lemmaRepo;
     private final IndexRepository indexRepo;
     private final LemmaFinder lemmaFinder;
 
-
     protected void indexAndSavePageToDB(Document document, Site site,
                                         String path) throws IOException {
-        Page page = createPage(site, document, path);
+        Page page = createPage(document, site, path);
         Optional<Site> optSite = siteRepo
-                .findByUrl(site.getUrl());
+                .findFirstByUrl(site.getUrl());
         if (optSite.isPresent()) {
             optSite.get().setStatusTime(new Date());
             siteRepo.saveAndFlush(optSite.get());
         }
-        if (!WebScraper.isStopped) {
-            pageRepo.saveAndFlush(page);
+        synchronized (this) {
+            if (!WebScraper.isStopped
+                    && !pageRepo.existsByPathAndSite(path, site)) {
+                pageRepo.saveAndFlush(page);
+            } else {
+                return;
+            }
+        }
+        if (page.getCode() < 400) {
             saveLemmasAndIndexes(page);
         }
     }
 
-    private Page createPage(Site site, Document document, String path) {
+    private Page createPage(Document document, Site site, String path) {
         Page page = new Page();
         int code = document.connection().response().statusCode();
         page.setSite(site);
@@ -60,55 +64,51 @@ public class EntitySaver {
     }
 
     private void saveLemmasAndIndexes(Page page) {
-        if (page.getCode() >= 400) {
-            return;
-        }
+        Set<Lemma> lemmas = ConcurrentHashMap.newKeySet();
+        Set<Index> indices = ConcurrentHashMap.newKeySet();
         String text = Jsoup.clean(page.getContent(), Safelist.none())
-                .replaceAll("<[^>]*>", " ")
                 .replaceAll("\\s+", " ");
-        Map<String, Integer> lemmaSet =
+        Map<String, Integer> lemmasWithRanks =
                 lemmaFinder.collectLemmas(text);
-        lemmaSet.forEach((l, r) -> saveLemmas(l, r, page));
+        synchronized (this) {
+            lemmasWithRanks.forEach((l, rank) -> {
+                if (WebScraper.isStopped) {
+                    return;
+                }
+                Lemma lemma = getLemma(l, page);
+                lemmas.add(lemma);
+                indices.add(getIndex(lemma, page, rank));
+            });
+            lemmaRepo.saveAllAndFlush(lemmas);
+            indexRepo.saveAllAndFlush(indices);
+        }
     }
 
-    private void saveLemmas(String l, float rank, Page page) {
-        Lemma lemma = new Lemma();
-        Optional<Lemma> optLemma = lemmaRepo.findByLemma(l);
+
+    private Lemma getLemma(String l, Page page) {
+        Lemma lemma;
+        Optional<Lemma> optLemma = lemmaRepo.findFirstByLemma(l);
         if (optLemma.isPresent()) {
             lemma = optLemma.get();
-            lemma.setSite(page.getSite());
             lemma.setFrequency(optLemma.get().getFrequency() + 1);
         } else {
+            lemma = new Lemma();
             lemma.setLemma(l);
             lemma.setSite(page.getSite());
             lemma.setFrequency(1);
         }
-        if (!WebScraper.isStopped) {
-            synchronized (this) {
-                lemmaRepo.saveAndFlush(lemma);
-            }
-            saveIndexes(lemma, page, rank);
-        }
+        return lemma;
     }
 
-    private void saveIndexes(Lemma lemma, Page page, float rank) {
-        Optional<Index> optIndex = indexRepo
-                .findByLemmaAndPage(lemma, page);
+    private Index getIndex(Lemma lemma, Page page, float rank) {
         Index index = new Index();
-        if (optIndex.isPresent()) {
-            index = optIndex.get();
-        }
         index.setLemma(lemma);
         index.setPage(page);
         index.setRank(rank);
-        if (!WebScraper.isStopped) {
-            synchronized (this) {
-                indexRepo.saveAndFlush(index);
-            }
-        }
+        return index;
     }
 
-    protected void saveSite(searchengine.config.Site s, Status status) {
+    public void saveSite(SiteConfig s, Status status) {
         String url = removeLastDash(s.getUrl());
         Site site = new Site();
         site.setUrl(url);

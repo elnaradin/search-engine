@@ -6,7 +6,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import searchengine.Application;
 import searchengine.dto.statistics.Response;
-import searchengine.services.IndexationService;
+import searchengine.services.indexation.IndexationService;
+
 
 
 @SpringBootTest(classes = Application.class)
@@ -18,8 +19,7 @@ public class IndexationServiceTest {
     @Test
     @DisplayName("Индексация существующей страницы")
     public void testIndexExistingPage() {
-
-        String exampleUrl = "https://www.playback.ru";
+        String exampleUrl = "https://dombulgakova.ru";
         Response actual = indexationService
                     .indexPageAndGetIndexPageResponse(exampleUrl);
         Response expected = new Response();

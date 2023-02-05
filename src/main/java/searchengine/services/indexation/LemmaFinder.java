@@ -1,4 +1,4 @@
-package searchengine.services;
+package searchengine.services.indexation;
 
 import org.apache.lucene.morphology.LuceneMorphology;
 import org.apache.lucene.morphology.russian.RussianLuceneMorphology;
@@ -101,7 +101,9 @@ public class LemmaFinder {
     private String[] arrayContainsRussianWords(String text) {
 
         return text.toLowerCase(Locale.ROOT)
-                .replaceAll("([^а-яё\\s])", " ")
+                .replaceAll("ё", "е")
+                .replaceAll("Ё", "Е")
+                .replaceAll("([^а-я\\s])", " ")
                 .trim()
                 .split("\\s+");
     }

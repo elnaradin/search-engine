@@ -1,4 +1,4 @@
-package searchengine.services;
+package searchengine.services.indexation;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +8,7 @@ import org.jsoup.nodes.Document;
 import org.springframework.stereotype.Service;
 
 import searchengine.config.JsoupSettings;
+import searchengine.config.SiteConfig;
 import searchengine.config.SitesList;
 import searchengine.dto.statistics.Response;
 import searchengine.model.*;
@@ -87,7 +88,7 @@ public class IndexationServiceImpl implements IndexationService {
     private void startIndexing(){
         WebScraper.isStopped = false;
         clearDB();
-        for (searchengine.config.Site s : sitesList.getSites()) {
+        for (SiteConfig s : sitesList.getSites()) {
             entitySaver.saveSite(s, Status.INDEXING);
         }
         pool = new ForkJoinPool();
@@ -113,7 +114,7 @@ public class IndexationServiceImpl implements IndexationService {
                 .response().statusCode() == 404) {
             return false;
         }
-        for (searchengine.config.Site site
+        for (SiteConfig site
                 : sitesList.getSites()) {
             if (url.startsWith(site.getUrl())) {
                 return true;
@@ -166,7 +167,7 @@ public class IndexationServiceImpl implements IndexationService {
     private void setIndexed(Site site) {
         if (!WebScraper.isStopped) {
             Optional<Site> optSite = siteRepo
-                    .findByUrl(site.getUrl());
+                    .findFirstByUrl(site.getUrl());
             if (optSite.isPresent() && !optSite.get()
                     .getStatus().equals(Status.FAILED)) {
                 optSite.get().setStatus(Status.INDEXED);

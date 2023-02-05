@@ -8,21 +8,12 @@ import searchengine.model.Page;
 import searchengine.model.Site;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 
 @Repository
 public interface PageRepository extends JpaRepository<Page, Integer> {
-    @Query(value = "SELECT Distinct`path` from `pages`" +
-            " where `path` = :path " +
-            "AND `site_id` = :site  LIMIT 1", nativeQuery = true)
-    Optional<String> findByPathAndSite(String path, Site site);
-
-    @Query(value = "SELECT * from `pages`" +
-            " where `path` = :path" + " " +
-            "AND `site_id` = :site LIMIT 1", nativeQuery = true)
-    Optional<Page> findPage(String path, Site site);
+    boolean existsByPathAndSite(String path, Site site);
 
     @Query(value = "SELECT COUNT(*) count from `pages`" +
             " where `site_id` = :site", nativeQuery = true)
@@ -51,5 +42,4 @@ public interface PageRepository extends JpaRepository<Page, Integer> {
             "LIMIT :limit OFFSET :offset", nativeQuery = true)
     Set<Page> getPagesWithLimit(Lemma lemma, List<Site> sites,
                                 Set<Page> pages, int limit, int offset);
-
 }

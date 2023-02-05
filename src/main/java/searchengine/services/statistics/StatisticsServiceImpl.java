@@ -1,8 +1,8 @@
-package searchengine.services;
+package searchengine.services.statistics;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import searchengine.config.Site;
+import searchengine.config.SiteConfig;
 import searchengine.config.SitesList;
 import searchengine.dto.statistics.DetailedStatisticsItem;
 import searchengine.dto.statistics.StatisticsData;
@@ -12,6 +12,8 @@ import searchengine.model.Status;
 import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
+import searchengine.services.indexation.EntitySaver;
+import searchengine.services.indexation.IndexationService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,15 +35,15 @@ public class StatisticsServiceImpl implements StatisticsService {
         total.setSites(sites.getSites().size());
         total.setIndexing(indexationService.isIndexing());
         List<DetailedStatisticsItem> detailed = new ArrayList<>();
-        List<Site> sitesList = sites.getSites();
-        for (Site value : sitesList) {
+        List<SiteConfig> sitesList = sites.getSites();
+        for (SiteConfig value : sitesList) {
             String url = value.getUrl();
             url = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
-            Optional<searchengine.model.Site> optSite = siteRepo.findByUrl(url);
+            Optional<searchengine.model.Site> optSite = siteRepo.findFirstByUrl(url);
             if (optSite.isEmpty()) {
                 entitySaver.saveSite(value, Status.INDEXED);
             }
-            searchengine.model.Site site = siteRepo.findByUrl(url).get();
+            searchengine.model.Site site = siteRepo.findFirstByUrl(url).get();
             detailed.add(getItem(site, total));
         }
         return getResponse(total, detailed);
@@ -69,7 +71,6 @@ public class StatisticsServiceImpl implements StatisticsService {
         item.setLemmas(lemmas);
         item.setStatus(site.getStatus().toString());
         item.setError(site.getLastError());
-
         item.setStatusTime(site.getStatusTime().getTime());
         total.setPages(total.getPages() + pages);
         total.setLemmas(total.getLemmas() + lemmas);
