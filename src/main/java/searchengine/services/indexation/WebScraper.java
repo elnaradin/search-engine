@@ -50,9 +50,9 @@ public class WebScraper extends RecursiveAction {
 
             Set<String> urls = (getUrls(document));
             for (String url : urls) {
-                actionList.add(createActions(url));
+                actionList.add(createAction(url));
             }
-            actionList.forEach(ForkJoinTask::join);
+            ForkJoinTask.invokeAll(actionList);
         } catch (CancellationException ignore) {
         } catch (Exception e) {
             e.printStackTrace();
@@ -61,13 +61,12 @@ public class WebScraper extends RecursiveAction {
     }
 
 
-    private WebScraper createActions(String url) throws InterruptedException {
+    private WebScraper createAction(String url) throws InterruptedException {
         String path = url.equals(site.getUrl()) ? "/"
                 : url.replace(site.getUrl(), "");
         WebScraper action = new WebScraper(
                 site, path, siteRepo,
                 pageRepo, settings, utils);
-        action.fork();
         return action;
     }
 

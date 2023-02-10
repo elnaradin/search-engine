@@ -8,6 +8,7 @@ import searchengine.dto.statistics.DetailedStatisticsItem;
 import searchengine.dto.statistics.StatisticsData;
 import searchengine.dto.statistics.StatisticsResponse;
 import searchengine.dto.statistics.TotalStatistics;
+import searchengine.model.Site;
 import searchengine.model.Status;
 import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
@@ -43,8 +44,8 @@ public class StatisticsServiceImpl implements StatisticsService {
             if (optSite.isEmpty()) {
                 entitySaver.saveSite(value, Status.INDEXED);
             }
-            searchengine.model.Site site = siteRepo.findFirstByUrl(url).get();
-            detailed.add(getItem(site, total));
+            Optional<Site> site = siteRepo.findFirstByUrl(url);
+            site.ifPresent(s -> detailed.add(getItem(s, total)));
         }
         return getResponse(total, detailed);
     }
@@ -65,8 +66,8 @@ public class StatisticsServiceImpl implements StatisticsService {
         DetailedStatisticsItem item = new DetailedStatisticsItem();
         item.setName(site.getName());
         item.setUrl(site.getUrl());
-        int pages = pageRepo.countPages(site);
-        int lemmas = lemmaRepo.countLemmas(site);
+        int pages = pageRepo.countPageBySite(site);
+        int lemmas = lemmaRepo.countLemmaBySite(site);
         item.setPages(pages);
         item.setLemmas(lemmas);
         item.setStatus(site.getStatus().toString());

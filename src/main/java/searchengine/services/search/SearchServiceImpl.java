@@ -5,6 +5,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.safety.Safelist;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 import searchengine.config.SitesList;
 import searchengine.dto.statistics.Data;
 import searchengine.dto.statistics.Response;
@@ -31,6 +32,7 @@ public class SearchServiceImpl implements SearchService {
     private final IndexRepository indexRepo;
     private final SitesList sitesList;
     private final LemmaFinder lemmaFinder;
+
 
     @Override
     public Response getResponse(String query, String site, Integer offset,
@@ -111,12 +113,17 @@ public class SearchServiceImpl implements SearchService {
         data.setUri(page.getPath());
         data.setTitle(getTitle(content));
         data.setRelevance(getRelevance(page));
-        String text = Jsoup.clean(content, Safelist.none())
+        String text = Jsoup.clean(content, Safelist.relaxed())
                 .replaceAll("&nbsp;", " ")
                 .replaceAll("<[^>]*>", " ")
                 .replaceAll("https?://[\\w\\W]\\S+", "")
-                .replaceAll("\\s+", " ");
-        data.setSnippet(getSnippet(getBoldPhrase(text, sortedLemmas), text));
+                .replaceAll("\\s*\\n+\\s*", " · ");
+        //               .replaceAll("\\s+", " ");
+        String boldPhrase = getBoldPhrase(text, sortedLemmas);
+        if (boldPhrase == null) {
+            return null;
+        }
+        data.setSnippet(getSnippet(boldPhrase, text));
         return data;
     }
 
@@ -144,14 +151,14 @@ public class SearchServiceImpl implements SearchService {
         if (CollectionUtils.isEmpty(sortedLemmas)) {
             return null;
         }
-        Set<Page> pages = pageRepo.getALLPages(sortedLemmas, sites);
+        Set<Page> pages = pageRepo.findPagesByLemmasAndSites(sortedLemmas, sites);
         for (int i = 0; i < sortedLemmas.size() - 1; i++) {
             Set<Page> foundPages = pageRepo
-                    .getPages(sortedLemmas.get(i), sites, pages);
+                    .findPagesByLemmaAndSites(sortedLemmas.get(i), sites, pages);
             pages.clear();
             pages.addAll(foundPages);
         }
-        return pageRepo.getPagesWithLimit(sortedLemmas
+        return pageRepo.findPagesBySitesAndLemmaWithLimitAndOffset(sortedLemmas
                 .get(sortedLemmas.size() > 0 ? sortedLemmas
                         .size() - 1 : 0), sites, pages, limit, offset);
     }
@@ -173,34 +180,32 @@ public class SearchServiceImpl implements SearchService {
 
     private String getBoldPhrase(String text, List<Lemma> sortedLemmas) {
         Map<String, Integer> snippets = new LinkedHashMap<>();
-
         Map<String, Set<String>> lemmasAndWords =
                 lemmaFinder.getTextInLemmas(text);
-        String[] sentences = text.split("[.?!]");
-        for (String sentence : sentences) {
-            String formattedSentence = getFormattedSentence(sentence,
-                    sortedLemmas, lemmasAndWords);
-            if (!formattedSentence.contains(boldStart)) {
-                continue;
-            }
-            snippets.putAll(collectPhrasesAndLength(formattedSentence));
+        if (CollectionUtils.isEmpty(lemmasAndWords)) {
+            return null;
         }
-        return getLongestBoldPhrase(snippets);
+        String formattedPart = getFormattedPart(text,
+                sortedLemmas, lemmasAndWords);
+        if (formattedPart != null && formattedPart.contains(boldStart)) {
+            snippets.putAll(collectPhrasesAndLengths(formattedPart));
+        }
+        return getLongestBoldPart(snippets);
     }
 
-    private Map<String, Integer> collectPhrasesAndLength(String formattedSentence) {
+    private Map<String, Integer> collectPhrasesAndLengths(String formattedPart) {
         Map<String, Integer> snippets = new LinkedHashMap<>();
-        String[] snippetWords = formattedSentence.split(" ");
+        String[] snippetWords = formattedPart.split(" ");
         for (String w : snippetWords) {
             if (w.contains(boldStart)) {
-                int length = formattedSentence.substring(formattedSentence
-                        .indexOf(boldStart) + boldStart.length(), formattedSentence
-                                .indexOf(boldEnd)).length();
-                if (snippets.containsKey(formattedSentence)) {
-                    snippets.put(formattedSentence,
-                            snippets.get(formattedSentence) + length);
+                int length = formattedPart.substring(formattedPart
+                        .indexOf(boldStart) + boldStart.length(), formattedPart
+                        .indexOf(boldEnd)).length();
+                if (snippets.containsKey(formattedPart)) {
+                    snippets.put(formattedPart,
+                            snippets.get(formattedPart) + length);
                 } else {
-                    snippets.put(formattedSentence, length);
+                    snippets.put(formattedPart, length);
                 }
             }
         }
@@ -208,37 +213,36 @@ public class SearchServiceImpl implements SearchService {
     }
 
 
-    private String getLongestBoldPhrase(Map<String, Integer> snippets) {
-        Optional<Map.Entry<String, Integer>> optBoldPhrase
+    private String getLongestBoldPart(Map<String, Integer> snippets) {
+        String boldPart = "";
+        Optional<Map.Entry<String, Integer>> optBoldPart
                 = snippets.entrySet().stream()
                 .max(Map.Entry.comparingByValue());
-        if (optBoldPhrase.isEmpty()) {
-            return "";
+        if (optBoldPart.isPresent()) {
+            boldPart = optBoldPart.get().getKey();
         }
-        String boldPhrase = optBoldPhrase.get().getKey();
-        int start = boldPhrase.indexOf(boldStart);
-        int end = boldPhrase.lastIndexOf(boldEnd) + boldEnd.length();
-        boldPhrase = boldPhrase.substring(start > 3 ? start - 3 : start,
-                boldPhrase.length() - end > 3 ? end + 3 : end);
-        return boldPhrase;
+        int start = boldPart.indexOf(boldStart);
+        int end = boldPart.lastIndexOf(boldEnd) + boldEnd.length();
+        boldPart = boldPart.substring(start > 3 ? start - 3 : start,
+                boldPart.length() - end > 3 ? end + 3 : end);
+        return boldPart;
     }
 
 
-    private String getFormattedSentence(String sentence, List<Lemma> sortedLemmas,
-                                        Map<String, Set<String>> lemmasAndWords) {
-        String[] words = sentence.split("\\s");
-        StringBuilder formattedSentence = new StringBuilder();
+    private String getFormattedPart(String part, List<Lemma> sortedLemmas,
+                                    Map<String, Set<String>> lemmasAndWords) {
+        String[] words = part.split("\\s");
+        StringBuilder formattedPart = new StringBuilder();
+        if (lemmasAndWords == null) {
+            return null;
+        }
         for (String word : words) {
-
             for (Lemma lemma : sortedLemmas) {
-                if (lemmasAndWords == null) {
-                    continue;
-                }
                 word = getWordInBold(word, lemma.getLemma(), lemmasAndWords);
             }
-            formattedSentence.append(word).append(" ");
+            formattedPart.append(word).append(" ");
         }
-        return formattedSentence.toString();
+        return formattedPart.toString();
     }
 
     private String getWordInBold(String word, String lemma,
@@ -250,7 +254,8 @@ public class SearchServiceImpl implements SearchService {
         for (String part : formattedWord) {
             if ((lemmasAndWords.get(lemma).stream()
                     .anyMatch(part.replaceAll("Ё", "Е")
-                            .replaceAll("ё", "е")::equalsIgnoreCase))) {
+                            .replaceAll("ё", "е")
+                            ::equalsIgnoreCase))) {
                 word = word.replace(part,
                         boldStart.concat(part).concat(boldEnd));
             }
@@ -258,50 +263,69 @@ public class SearchServiceImpl implements SearchService {
         return word;
     }
 
-    private String getSnippet(String formattedSentence, String text) {
-        String sentence = formattedSentence
+    private String getSnippet(String formattedPart, String text) {
+        int leftSpace = 20;
+        int snippetLength = leftSpace * 12;
+        String threeDots = " ...";
+        String sentence = formattedPart
                 .replaceAll("</?b>", "").trim();
         int startIndex = text.indexOf(sentence);
         int endIndex = text.indexOf(sentence) + sentence.length();
-        if (startIndex < 0) {
-            return formattedSentence.length() > 240
-                    ? formattedSentence
-                    .substring(0, 240) : formattedSentence;
-        }
         String subString = text.substring(startIndex, endIndex);
-        text = text.replace(subString, formattedSentence);
-        return cutText(startIndex, endIndex, text);
-    }
-
-
-    private String cutText(int startIndex, int endIndex, String text) {
-        int[] distance = getDistance(text, startIndex, endIndex);
-        int substringStart = text.indexOf(" ",
-                startIndex > distance[0]
-                        ? startIndex - distance[0] : startIndex);
-        if (substringStart > text.indexOf(boldStart)) {
-            substringStart = 0;
-        }
-        int substringEnd = text.length() - endIndex - 1 > distance[1]
-                ? endIndex + distance[1] : text.length();
+        text = text.replace(subString, formattedPart);
+        int substringStart = getSubstringStart(text,
+                formattedPart, leftSpace);
         String snippet = text.substring(substringStart,
-                substringEnd).concat("...");
-        if (snippet.length() > 250) {
-            snippet = snippet.substring(0, 250)
-                    .concat("...");
-        }
-        return snippet;
+                text.length() - 1);
+        return getCutSnippet(snippet, snippetLength).concat(threeDots);
     }
 
-    private int[] getDistance(String text, int startIndex, int endIndex) {
-        int leftSpace = 30;
-        int rightSpace = 250;
+    private String getCutSnippet(String snippet, int snippetLength) {
+        String tags = "</?b>";
+        int count = StringUtils.countOccurrencesOf(snippet, boldStart);
+        String unformattedSnippet = snippet.replaceAll(tags, "")
+                .substring(0, snippetLength);
+        String formattedSnippet = "";
+        for (int i = count; i >= 1; i--) {
+            int endOfSnippet = snippet.indexOf(" ",
+                    snippetLength + i
+                            * (boldStart.length() + boldEnd.length()));
+            formattedSnippet = snippet.substring(0, endOfSnippet);
+            if (formattedSnippet.replaceAll(tags, "")
+                    .length() < unformattedSnippet.length()) {
+                break;
+            }
+        }
+        return formattedSnippet;
+    }
+
+
+    private int getSubstringStart(String text, String formattedPart, int leftSpace) {
+        String maxFormattedSentence = getMaxSentenceWithTags(formattedPart);
+        int startIndex = text.indexOf(maxFormattedSentence);
         if (startIndex < leftSpace) {
-            leftSpace = Math.abs(leftSpace - startIndex);
+            leftSpace = 0;
         }
-        if (text.length() - endIndex < rightSpace) {
-            rightSpace = Math.abs(text.length() - endIndex - 1);
+        return text.indexOf(" ",
+                startIndex > leftSpace ? startIndex
+                        - leftSpace : startIndex);
+    }
+
+    private String getMaxSentenceWithTags(String formattedPart) {
+        String[] sentences = formattedPart
+                .split("(?<=[.!?·])\\s*(?=(<b>|\"|«|· )?[А-ЯЁ])");
+        String maxSentence = "";
+        int maxValue = 0;
+        for (String sentence : sentences) {
+            int boldWordsCount = StringUtils
+                    .countOccurrencesOf(sentence, boldStart);
+            if (boldWordsCount > maxValue) {
+                maxValue = boldWordsCount;
+                maxSentence = sentence;
+            }
         }
-        return new int[]{leftSpace, rightSpace};
+        int index = formattedPart.indexOf(maxSentence);
+        return formattedPart.substring(index,
+                index + maxSentence.length());
     }
 }

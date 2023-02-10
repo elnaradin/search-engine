@@ -10,7 +10,7 @@ import java.util.*;
 @Service
 public class LemmaFinder {
     private final LuceneMorphology luceneMorphology = new RussianLuceneMorphology();
-    private  final String[] particlesNames = new String[]{"МЕЖД", "ПРЕДЛ", "СОЮЗ"};
+    private final String[] particlesNames = new String[]{"МЕЖД", "ПРЕДЛ", "СОЮЗ"/*, "МС", "ЧАСТ "*/};
 
     public LemmaFinder() throws IOException {
     }
@@ -19,7 +19,7 @@ public class LemmaFinder {
         String[] words = arrayContainsRussianWords(text);
         HashMap<String, Integer> lemmas = new HashMap<>();
         for (String word : words) {
-            if (isWrongWord(word)){
+            if (isWrongWord(word)) {
                 continue;
             }
             List<String> normalForms = luceneMorphology.getNormalForms(word);
@@ -41,7 +41,7 @@ public class LemmaFinder {
         String[] words = arrayContainsRussianWords(text);
         Set<String> lemmas = new HashSet<>();
         for (String word : words) {
-            if (isWrongWord(word)){
+            if (isWrongWord(word)) {
                 continue;
             }
             List<String> normalForms = luceneMorphology.getNormalForms(word);
@@ -58,7 +58,7 @@ public class LemmaFinder {
         String[] words = arrayContainsRussianWords(text);
         HashMap<String, Set<String>> lemmas = new HashMap<>();
         for (String word : words) {
-            if (isWrongWord(word)){
+            if (isWrongWord(word)) {
                 continue;
             }
             List<String> normalForms = luceneMorphology.getNormalForms(word);
@@ -68,10 +68,12 @@ public class LemmaFinder {
             String normalWord = normalForms.get(0);
             if (lemmas.containsKey(normalWord)) {
                 Set<String> wordsSet = new HashSet<>(lemmas.get(normalWord));
-                 wordsSet.add(word);
+                wordsSet.add(word);
                 lemmas.put(normalWord, wordsSet);
             } else {
-                lemmas.put(normalWord, new HashSet<>(){{add(word);}});
+                lemmas.put(normalWord, new HashSet<>() {{
+                    add(word);
+                }});
             }
         }
         return lemmas;
@@ -81,7 +83,8 @@ public class LemmaFinder {
     private boolean anyWordBaseBelongToParticle(List<String> wordBaseForms) {
         return wordBaseForms.stream().anyMatch(this::hasParticleProperty);
     }
-    private boolean isWrongWord(String word){
+
+    private boolean isWrongWord(String word) {
         if (word.isBlank()) {
             return true;
         }

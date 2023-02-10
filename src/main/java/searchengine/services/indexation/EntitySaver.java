@@ -33,20 +33,18 @@ public class EntitySaver {
 
     protected void indexAndSavePageToDB(Document document, Site site,
                                         String path) throws IOException {
-        Page page = createPage(document, site, path);
         Optional<Site> optSite = siteRepo
                 .findFirstByUrl(site.getUrl());
         if (optSite.isPresent()) {
             optSite.get().setStatusTime(new Date());
             siteRepo.saveAndFlush(optSite.get());
         }
+        Page page;
         synchronized (this) {
-            if (!WebScraper.isStopped
-                    && !pageRepo.existsByPathAndSite(path, site)) {
-                pageRepo.saveAndFlush(page);
-            } else {
-                return;
-            }
+            Optional<Page> optionalPage = pageRepo
+                    .findPageByPathAndSite(path.isBlank() ? "/" : path, site);
+            page = optionalPage.orElseGet(() -> createPage(document, site, path));
+            pageRepo.saveAndFlush(page);
         }
         if (page.getCode() < 400) {
             saveLemmasAndIndexes(page);

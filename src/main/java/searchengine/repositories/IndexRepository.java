@@ -18,9 +18,4 @@ public interface IndexRepository extends JpaRepository<Index, Integer> {
     @Query(value = "SELECT SUM(`rank`) / :maxValue " +
             "FROM `indexes` i WHERE  page_id = :page", nativeQuery = true)
     Float getRelevance(Page page, float maxValue);
-
-
-
-
-
 }

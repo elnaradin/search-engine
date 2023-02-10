@@ -85,7 +85,7 @@ public class IndexationServiceImpl implements IndexationService {
         siteRepo.deleteAllInBatch();
     }
 
-    private void startIndexing(){
+    private void startIndexing() {
         WebScraper.isStopped = false;
         clearDB();
         for (SiteConfig s : sitesList.getSites()) {
@@ -137,12 +137,12 @@ public class IndexationServiceImpl implements IndexationService {
         try {
             Document document = Jsoup.connect(url).get();
             Site site = findSiteByPageURL(url);
-            if(site != null) {
+            if (site != null) {
                 entitySaver.indexAndSavePageToDB(document, site,
                         url.replace(site.getUrl(), ""));
             }
         } catch (IOException ex) {
-            setFailed(ex.getMessage());
+            setFailed("Страницу " + url + " проиндексировать не удалось");
         }
     }
 

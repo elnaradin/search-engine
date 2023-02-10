@@ -20,8 +20,6 @@ public interface LemmaRepository extends JpaRepository<Lemma, Integer> {
             "ORDER BY `frequency` ASC ", nativeQuery = true)
     List<Lemma> findByLemmas(Set<String> lemmaSet);
 
-    @Query(value = "SELECT COUNT(*) count  FROM lemmas " +
-            "WHERE `site_id` = :site", nativeQuery = true)
-    Integer countLemmas(Site site);
+    Integer countLemmaBySite(Site site);
 
 }
