@@ -1,4 +1,4 @@
-package searchengine.services.indexation;
+package searchengine.services.morphology;
 
 import org.apache.lucene.morphology.LuceneMorphology;
 import org.apache.lucene.morphology.russian.RussianLuceneMorphology;
@@ -8,13 +8,14 @@ import java.io.IOException;
 import java.util.*;
 
 @Service
-public class LemmaFinder {
+public class LemmaFinderImpl implements LemmaFinder{
     private final LuceneMorphology luceneMorphology = new RussianLuceneMorphology();
-    private final String[] particlesNames = new String[]{"МЕЖД", "ПРЕДЛ", "СОЮЗ"/*, "МС", "ЧАСТ "*/};
+    private final String[] particlesNames = new String[]{"МЕЖД", "ПРЕДЛ", "СОЮЗ"};
 
-    public LemmaFinder() throws IOException {
+    public LemmaFinderImpl() throws IOException {
     }
 
+    @Override
     public Map<String, Integer> collectLemmas(String text) {
         String[] words = arrayContainsRussianWords(text);
         HashMap<String, Integer> lemmas = new HashMap<>();
@@ -36,7 +37,7 @@ public class LemmaFinder {
         return lemmas;
     }
 
-
+    @Override
     public Set<String> getLemmaSet(String text) {
         String[] words = arrayContainsRussianWords(text);
         Set<String> lemmas = new HashSet<>();
@@ -54,7 +55,8 @@ public class LemmaFinder {
         return lemmas;
     }
 
-    public Map<String, Set<String>> getTextInLemmas(String text) {
+    @Override
+    public Map<String, Set<String>> collectLemmasAndWords(String text) {
         String[] words = arrayContainsRussianWords(text);
         HashMap<String, Set<String>> lemmas = new HashMap<>();
         for (String word : words) {
@@ -81,7 +83,8 @@ public class LemmaFinder {
 
 
     private boolean anyWordBaseBelongToParticle(List<String> wordBaseForms) {
-        return wordBaseForms.stream().anyMatch(this::hasParticleProperty);
+        return wordBaseForms.stream()
+                .anyMatch(this::hasParticleProperty);
     }
 
     private boolean isWrongWord(String word) {
@@ -93,8 +96,10 @@ public class LemmaFinder {
     }
 
     private boolean hasParticleProperty(String wordBase) {
+        String properties = wordBase.toUpperCase().substring(wordBase
+                .indexOf("|"));
         for (String property : particlesNames) {
-            if (wordBase.toUpperCase().contains(property)) {
+            if (properties.contains(property)) {
                 return true;
             }
         }
@@ -102,7 +107,6 @@ public class LemmaFinder {
     }
 
     private String[] arrayContainsRussianWords(String text) {
-
         return text.toLowerCase(Locale.ROOT)
                 .replaceAll("ё", "е")
                 .replaceAll("Ё", "Е")

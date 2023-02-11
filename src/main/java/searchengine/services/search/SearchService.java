@@ -10,9 +10,9 @@ public interface SearchService {
                     "или слова в запросе встречаются слишком часто",
             "Введен пустой запрос"};
 
-    Response getResponse(String query,
-                         String site,
-                         Integer offset,
-                         Integer limit);
+    Response searchAndGetResponse(String query,
+                                  String site,
+                                  Integer offset,
+                                  Integer limit);
 
 }

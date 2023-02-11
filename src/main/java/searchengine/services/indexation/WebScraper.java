@@ -23,18 +23,18 @@ public class WebScraper extends RecursiveAction {
     private final SiteRepository siteRepo;
     private final PageRepository pageRepo;
     private final JsoupSettings settings;
-    private final EntitySaver utils;
+    private final EntitySaver entitySaver;
 
 
     public WebScraper(Site site, String path, SiteRepository siteRepo,
                       PageRepository pageRepo, JsoupSettings settings,
-                      EntitySaver utils) {
+                      EntitySaver entitySaver) {
         this.site = site;
         this.path = path;
         this.siteRepo = siteRepo;
         this.pageRepo = pageRepo;
         this.settings = settings;
-        this.utils = utils;
+        this.entitySaver = entitySaver;
     }
 
     @Override
@@ -45,7 +45,7 @@ public class WebScraper extends RecursiveAction {
                 return;
             }
             Document document = getDocument();
-            utils.indexAndSavePageToDB(document, site, path);
+            entitySaver.indexAndSavePageToDB(document, site, path);
             Set<WebScraper> actionList = ConcurrentHashMap.newKeySet();
 
             Set<String> urls = (getUrls(document));
@@ -66,7 +66,7 @@ public class WebScraper extends RecursiveAction {
                 : url.replace(site.getUrl(), "");
         WebScraper action = new WebScraper(
                 site, path, siteRepo,
-                pageRepo, settings, utils);
+                pageRepo, settings, entitySaver);
         return action;
     }
 

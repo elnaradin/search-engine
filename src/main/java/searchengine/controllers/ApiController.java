@@ -43,6 +43,6 @@ public class ApiController {
     @GetMapping("/search")
     public Response search(String query, String site,
                                            Integer offset, Integer limit) {
-        return searchService.getResponse(query, site, offset, limit);
+        return searchService.searchAndGetResponse(query, site, offset, limit);
     }
 }

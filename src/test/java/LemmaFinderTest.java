@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import searchengine.Application;
-import searchengine.services.indexation.LemmaFinder;
+import searchengine.services.morphology.LemmaFinderImpl;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -12,7 +12,7 @@ import java.util.Map;
 @SpringBootTest(classes = Application.class)
 public class LemmaFinderTest {
     @Autowired
-    public LemmaFinder lemmaFinder;
+    public LemmaFinderImpl lemmaFinder;
 
     @Test
     @DisplayName("Нахождение лемм и их частотности")

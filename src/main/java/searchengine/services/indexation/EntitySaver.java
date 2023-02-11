@@ -14,6 +14,7 @@ import searchengine.repositories.IndexRepository;
 import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
+import searchengine.services.morphology.LemmaFinderImpl;
 
 import java.io.IOException;
 import java.util.*;
@@ -29,7 +30,7 @@ public class EntitySaver {
     private final PageRepository pageRepo;
     private final LemmaRepository lemmaRepo;
     private final IndexRepository indexRepo;
-    private final LemmaFinder lemmaFinder;
+    private final LemmaFinderImpl lemmaFinder;
 
     protected void indexAndSavePageToDB(Document document, Site site,
                                         String path) throws IOException {
@@ -42,7 +43,7 @@ public class EntitySaver {
         Page page;
         synchronized (this) {
             Optional<Page> optionalPage = pageRepo
-                    .findPageByPathAndSite(path.isBlank() ? "/" : path, site);
+                    .findFirstByPathAndSite(path.isBlank() ? "/" : path, site);
             page = optionalPage.orElseGet(() -> createPage(document, site, path));
             pageRepo.saveAndFlush(page);
         }
@@ -73,9 +74,9 @@ public class EntitySaver {
                 if (WebScraper.isStopped) {
                     return;
                 }
-                Lemma lemma = getLemma(l, page);
+                Lemma lemma = createLemma(l, page);
                 lemmas.add(lemma);
-                indices.add(getIndex(lemma, page, rank));
+                indices.add(createIndex(lemma, page, rank));
             });
             lemmaRepo.saveAllAndFlush(lemmas);
             indexRepo.saveAllAndFlush(indices);
@@ -83,7 +84,7 @@ public class EntitySaver {
     }
 
 
-    private Lemma getLemma(String l, Page page) {
+    private Lemma createLemma(String l, Page page) {
         Lemma lemma;
         Optional<Lemma> optLemma = lemmaRepo.findFirstByLemma(l);
         if (optLemma.isPresent()) {
@@ -98,7 +99,7 @@ public class EntitySaver {
         return lemma;
     }
 
-    private Index getIndex(Lemma lemma, Page page, float rank) {
+    private Index createIndex(Lemma lemma, Page page, float rank) {
         Index index = new Index();
         index.setLemma(lemma);
         index.setPage(page);

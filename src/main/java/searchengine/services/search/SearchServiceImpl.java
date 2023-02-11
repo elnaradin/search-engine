@@ -16,7 +16,7 @@ import searchengine.repositories.IndexRepository;
 import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
-import searchengine.services.indexation.LemmaFinder;
+import searchengine.services.morphology.LemmaFinderImpl;
 
 import java.util.*;
 
@@ -31,18 +31,18 @@ public class SearchServiceImpl implements SearchService {
     private final LemmaRepository lemmaRepo;
     private final IndexRepository indexRepo;
     private final SitesList sitesList;
-    private final LemmaFinder lemmaFinder;
+    private final LemmaFinderImpl lemmaFinder;
 
 
     @Override
-    public Response getResponse(String query, String site, Integer offset,
-                                Integer limit) {
+    public Response searchAndGetResponse(String query, String site, Integer offset,
+                                         Integer limit) {
         List<Site> sites = getSites(site);
         List<Data> dataList = new ArrayList<>();
         Set<String> lemmas = lemmaFinder.getLemmaSet(query
                 .replaceAll("[Ёё]", "е"));
         List<Lemma> sortedLemmas = getSortedLemmas(lemmas);
-        Set<Page> pages = getPages(sortedLemmas, sites, offset, limit);
+        Set<Page> pages = getPages(sortedLemmas, sites);
         if (pages != null) {
             for (Page page : pages) {
                 String content = page.getContent();
@@ -50,11 +50,14 @@ public class SearchServiceImpl implements SearchService {
             }
         }
         dataList.sort(Collections.reverseOrder());
-        return handleErrors(site, lemmas, sortedLemmas, pages, dataList, query);
+        return createResponse(site, lemmas, sortedLemmas,
+                dataList, query, limit, offset);
     }
 
-    private Response handleErrors(String site, Set<String> lemmas, List<Lemma> sortedLemmas,
-                                  Set<Page> pages, List<Data> dataList, String query) {
+    private Response createResponse(String site, Set<String> lemmas,
+                                    List<Lemma> sortedLemmas,
+                                    List<Data> dataList, String query,
+                                    int limit, int offset) {
         Response response = new Response();
         if (site != null && !siteIsPresent(site)) {
             response.setError(errors[0]);
@@ -68,14 +71,11 @@ public class SearchServiceImpl implements SearchService {
             response.setError(errors[2]);
             return response;
         }
-        if (pages == null) {
-            response.setError(errors[2]);
-            return response;
-        }
         if (query == null) {
             response.setError(errors[3]);
+            return response;
         }
-        return getResponse(dataList);
+        return createOkResponse(dataList, limit, offset);
     }
 
     private boolean siteIsPresent(String site) {
@@ -85,11 +85,14 @@ public class SearchServiceImpl implements SearchService {
                         : s.getUrl()).equals(site));
     }
 
-    private Response getResponse(List<Data> dataList) {
+    private Response createOkResponse(List<Data> dataList,
+                                      int limit, int offset) {
         Response response = new Response();
         response.setCount(dataList.size());
         response.setResult(true);
-        response.setData(dataList);
+        int endIndex = offset + limit;
+        response.setData(dataList.subList(offset,
+                Math.min(endIndex, dataList.size())));
         return response;
     }
 
@@ -118,7 +121,6 @@ public class SearchServiceImpl implements SearchService {
                 .replaceAll("<[^>]*>", " ")
                 .replaceAll("https?://[\\w\\W]\\S+", "")
                 .replaceAll("\\s*\\n+\\s*", " · ");
-        //               .replaceAll("\\s+", " ");
         String boldPhrase = getBoldPhrase(text, sortedLemmas);
         if (boldPhrase == null) {
             return null;
@@ -146,8 +148,7 @@ public class SearchServiceImpl implements SearchService {
                 .getRelevance(page, maxRelevanceValue);
     }
 
-    private Set<Page> getPages(List<Lemma> sortedLemmas, List<Site> sites,
-                               int offset, int limit) {
+    private Set<Page> getPages(List<Lemma> sortedLemmas, List<Site> sites) {
         if (CollectionUtils.isEmpty(sortedLemmas)) {
             return null;
         }
@@ -158,9 +159,9 @@ public class SearchServiceImpl implements SearchService {
             pages.clear();
             pages.addAll(foundPages);
         }
-        return pageRepo.findPagesBySitesAndLemmaWithLimitAndOffset(sortedLemmas
+        return pageRepo.findPagesByLemmaAndSites(sortedLemmas
                 .get(sortedLemmas.size() > 0 ? sortedLemmas
-                        .size() - 1 : 0), sites, pages, limit, offset);
+                        .size() - 1 : 0), sites, pages);
     }
 
     private List<Lemma> getSortedLemmas(Set<String> lemmas) {
@@ -170,7 +171,7 @@ public class SearchServiceImpl implements SearchService {
         }
         List<Lemma> lemmasToRemove = new Vector<>();
         for (Lemma lemma : sortedLemmas) {
-            if (lemma.getFrequency() > 2000) {
+            if (lemma.getFrequency() > 250) {
                 lemmasToRemove.add(lemma);
             }
         }
@@ -181,7 +182,7 @@ public class SearchServiceImpl implements SearchService {
     private String getBoldPhrase(String text, List<Lemma> sortedLemmas) {
         Map<String, Integer> snippets = new LinkedHashMap<>();
         Map<String, Set<String>> lemmasAndWords =
-                lemmaFinder.getTextInLemmas(text);
+                lemmaFinder.collectLemmasAndWords(text);
         if (CollectionUtils.isEmpty(lemmasAndWords)) {
             return null;
         }
@@ -197,16 +198,17 @@ public class SearchServiceImpl implements SearchService {
         Map<String, Integer> snippets = new LinkedHashMap<>();
         String[] snippetWords = formattedPart.split(" ");
         for (String w : snippetWords) {
-            if (w.contains(boldStart)) {
-                int length = formattedPart.substring(formattedPart
-                        .indexOf(boldStart) + boldStart.length(), formattedPart
-                        .indexOf(boldEnd)).length();
-                if (snippets.containsKey(formattedPart)) {
-                    snippets.put(formattedPart,
-                            snippets.get(formattedPart) + length);
-                } else {
-                    snippets.put(formattedPart, length);
-                }
+            if (!w.contains(boldStart)) {
+                continue;
+            }
+            int length = formattedPart.substring(formattedPart
+                    .indexOf(boldStart) + boldStart.length(), formattedPart
+                    .indexOf(boldEnd)).length();
+            if (snippets.containsKey(formattedPart)) {
+                snippets.put(formattedPart,
+                        snippets.get(formattedPart) + length);
+            } else {
+                snippets.put(formattedPart, length);
             }
         }
         return snippets;
