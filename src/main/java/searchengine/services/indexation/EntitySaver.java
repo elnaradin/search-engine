@@ -37,6 +37,8 @@ public class EntitySaver {
         Optional<Site> optSite = siteRepo
                 .findFirstByUrl(site.getUrl());
         if (optSite.isPresent()) {
+            optSite.get().setLastError(null);
+            optSite.get().setStatus(Status.INDEXING);
             optSite.get().setStatusTime(new Date());
             siteRepo.saveAndFlush(optSite.get());
         }
@@ -65,8 +67,8 @@ public class EntitySaver {
     private void saveLemmasAndIndexes(Page page) {
         Set<Lemma> lemmas = ConcurrentHashMap.newKeySet();
         Set<Index> indices = ConcurrentHashMap.newKeySet();
-        String text = Jsoup.clean(page.getContent(), Safelist.none())
-                .replaceAll("\\s+", " ");
+        String text = Jsoup.clean(page.getContent(), Safelist.relaxed())
+                .replaceAll("[Ёё]", "е");
         Map<String, Integer> lemmasWithRanks =
                 lemmaFinder.collectLemmas(text);
         synchronized (this) {

@@ -105,7 +105,9 @@ public class WebScraper extends RecursiveAction {
     private void setErrorToSite(Exception e) {
         Optional<Site> optSite = siteRepo.findFirstByUrl(site.getUrl());
         if (optSite.isPresent()) {
-            optSite.get().setLastError(optSite.get().getLastError() + " / " + e.getMessage());
+            optSite.get().setStatus(Status.FAILED);
+            optSite.get().setLastError("Произошла ошибка при парсинге страницы. "
+                    + "Сообщение ошибки: " + e.getMessage());
             siteRepo.saveAndFlush(optSite.get());
         }
     }

@@ -23,9 +23,11 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class SearchServiceImpl implements SearchService {
+
     private Float maxRelevanceValue;
     private final String boldStart = "<b>";
     private final String boldEnd = "</b>";
+    private final String boldRegex = "</?b>";
     private final SiteRepository siteRepo;
     private final PageRepository pageRepo;
     private final LemmaRepository lemmaRepo;
@@ -33,31 +35,12 @@ public class SearchServiceImpl implements SearchService {
     private final SitesList sitesList;
     private final LemmaFinderImpl lemmaFinder;
 
-
     @Override
-    public Response searchAndGetResponse(String query, String site, Integer offset,
-                                         Integer limit) {
-        List<Site> sites = getSites(site);
-        List<Data> dataList = new ArrayList<>();
+    public Response searchAndGetResponse(String query, String site,
+                                         Integer offset, Integer limit) {
         Set<String> lemmas = lemmaFinder.getLemmaSet(query
                 .replaceAll("[Ёё]", "е"));
-        List<Lemma> sortedLemmas = getSortedLemmas(lemmas);
-        Set<Page> pages = getPages(sortedLemmas, sites);
-        if (pages != null) {
-            for (Page page : pages) {
-                String content = page.getContent();
-                dataList.add(getData(page, content, sortedLemmas));
-            }
-        }
-        dataList.sort(Collections.reverseOrder());
-        return createResponse(site, lemmas, sortedLemmas,
-                dataList, query, limit, offset);
-    }
-
-    private Response createResponse(String site, Set<String> lemmas,
-                                    List<Lemma> sortedLemmas,
-                                    List<Data> dataList, String query,
-                                    int limit, int offset) {
+        List<Lemma> sortedLemmas = findLemmasInDBAndSort(lemmas);
         Response response = new Response();
         if (site != null && !siteIsPresent(site)) {
             response.setError(errors[0]);
@@ -71,11 +54,7 @@ public class SearchServiceImpl implements SearchService {
             response.setError(errors[2]);
             return response;
         }
-        if (query == null) {
-            response.setError(errors[3]);
-            return response;
-        }
-        return createOkResponse(dataList, limit, offset);
+        return createOkResponse(limit, offset, sortedLemmas, site);
     }
 
     private boolean siteIsPresent(String site) {
@@ -85,8 +64,9 @@ public class SearchServiceImpl implements SearchService {
                         : s.getUrl()).equals(site));
     }
 
-    private Response createOkResponse(List<Data> dataList,
-                                      int limit, int offset) {
+    private Response createOkResponse(int limit, int offset,
+                                      List<Lemma> sortedLemmas, String site) {
+        List<Data> dataList = createDataList(sortedLemmas, site);
         Response response = new Response();
         response.setCount(dataList.size());
         response.setResult(true);
@@ -94,6 +74,19 @@ public class SearchServiceImpl implements SearchService {
         response.setData(dataList.subList(offset,
                 Math.min(endIndex, dataList.size())));
         return response;
+    }
+
+    private List<Data> createDataList(List<Lemma> sortedLemmas, String site) {
+        List<Site> sites = getSites(site);
+        Set<Page> pages = findPages(sortedLemmas, sites);
+        List<Data> dataList = new ArrayList<>();
+        for (Page page : pages) {
+            String content = page.getContent();
+            Data data = collectData(page, content, sortedLemmas);
+            dataList.add(data);
+        }
+        dataList.sort(Collections.reverseOrder());
+        return dataList;
     }
 
     private List<Site> getSites(String site) {
@@ -108,28 +101,24 @@ public class SearchServiceImpl implements SearchService {
     }
 
 
-    private Data getData(Page page, String content,
-                         List<Lemma> sortedLemmas) {
+    private Data collectData(Page page, String content,
+                             List<Lemma> sortedLemmas) {
         Data data = new Data();
         data.setSite(page.getSite().getUrl());
         data.setSiteName(page.getSite().getName());
         data.setUri(page.getPath());
-        data.setTitle(getTitle(content));
+        data.setTitle(findTitle(content));
         data.setRelevance(getRelevance(page));
         String text = Jsoup.clean(content, Safelist.relaxed())
                 .replaceAll("&nbsp;", " ")
                 .replaceAll("<[^>]*>", " ")
                 .replaceAll("https?://[\\w\\W]\\S+", "")
                 .replaceAll("\\s*\\n+\\s*", " · ");
-        String boldPhrase = getBoldPhrase(text, sortedLemmas);
-        if (boldPhrase == null) {
-            return null;
-        }
-        data.setSnippet(getSnippet(boldPhrase, text));
+        data.setSnippet(createSnippet(text, sortedLemmas));
         return data;
     }
 
-    private String getTitle(String content) {
+    private String findTitle(String content) {
         String titleStart = "<title>";
         String titleEnd = "</title>";
         if (content.contains(titleStart)) {
@@ -148,23 +137,21 @@ public class SearchServiceImpl implements SearchService {
                 .getRelevance(page, maxRelevanceValue);
     }
 
-    private Set<Page> getPages(List<Lemma> sortedLemmas, List<Site> sites) {
-        if (CollectionUtils.isEmpty(sortedLemmas)) {
-            return null;
-        }
+    private Set<Page> findPages(List<Lemma> sortedLemmas, List<Site> sites) {
         Set<Page> pages = pageRepo.findPagesByLemmasAndSites(sortedLemmas, sites);
         for (int i = 0; i < sortedLemmas.size() - 1; i++) {
             Set<Page> foundPages = pageRepo
-                    .findPagesByLemmaAndSites(sortedLemmas.get(i), sites, pages);
+                    .findPagesByOneLemmaAndSitesAndPages(sortedLemmas.get(i),
+                            sites, pages);
             pages.clear();
             pages.addAll(foundPages);
         }
-        return pageRepo.findPagesByLemmaAndSites(sortedLemmas
+        return pageRepo.findPagesByOneLemmaAndSitesAndPages(sortedLemmas
                 .get(sortedLemmas.size() > 0 ? sortedLemmas
                         .size() - 1 : 0), sites, pages);
     }
 
-    private List<Lemma> getSortedLemmas(Set<String> lemmas) {
+    private List<Lemma> findLemmasInDBAndSort(Set<String> lemmas) {
         List<Lemma> sortedLemmas = lemmaRepo.findByLemmas(lemmas);
         if (sortedLemmas.size() < lemmas.size()) {
             return null;
@@ -179,65 +166,40 @@ public class SearchServiceImpl implements SearchService {
         return sortedLemmas;
     }
 
-    private String getBoldPhrase(String text, List<Lemma> sortedLemmas) {
-        Map<String, Integer> snippets = new LinkedHashMap<>();
+    private String createSnippet(String text, List<Lemma> sortedLemmas) {
+        String formattedPart = findQueryPartAndFormat(text, sortedLemmas);
+        int leftSpace = 20;
+        int snippetLength = leftSpace * 12;
+        String threeDots = " ...";
+        String sentence = formattedPart
+                .replaceAll(boldRegex, "").trim();
+        int startIndex = text.indexOf(sentence);
+        int endIndex = text.indexOf(sentence) + sentence.length();
+        String subString = text.substring(startIndex, endIndex);
+        text = text.replace(subString, formattedPart);
+        int substringStart = findStartIndexInText(text,
+                formattedPart, leftSpace);
+        String snippet = text.substring(substringStart,
+                text.length() - 1);
+        return cutSnippet(snippet, snippetLength).concat(threeDots);
+    }
+
+    private String findQueryPartAndFormat(String text, List<Lemma> sortedLemmas) {
         Map<String, Set<String>> lemmasAndWords =
                 lemmaFinder.collectLemmasAndWords(text);
-        if (CollectionUtils.isEmpty(lemmasAndWords)) {
-            return null;
-        }
-        String formattedPart = getFormattedPart(text,
+        String formattedText = formatText(text,
                 sortedLemmas, lemmasAndWords);
-        if (formattedPart != null && formattedPart.contains(boldStart)) {
-            snippets.putAll(collectPhrasesAndLengths(formattedPart));
-        }
-        return getLongestBoldPart(snippets);
-    }
-
-    private Map<String, Integer> collectPhrasesAndLengths(String formattedPart) {
-        Map<String, Integer> snippets = new LinkedHashMap<>();
-        String[] snippetWords = formattedPart.split(" ");
-        for (String w : snippetWords) {
-            if (!w.contains(boldStart)) {
-                continue;
-            }
-            int length = formattedPart.substring(formattedPart
-                    .indexOf(boldStart) + boldStart.length(), formattedPart
-                    .indexOf(boldEnd)).length();
-            if (snippets.containsKey(formattedPart)) {
-                snippets.put(formattedPart,
-                        snippets.get(formattedPart) + length);
-            } else {
-                snippets.put(formattedPart, length);
-            }
-        }
-        return snippets;
+        int start = formattedText.indexOf(boldStart);
+        int end = formattedText.lastIndexOf(boldEnd) + boldEnd.length();
+        return formattedText.substring(start > 3 ? start - 3 : start,
+                formattedText.length() - end > 3 ? end + 3 : end);
     }
 
 
-    private String getLongestBoldPart(Map<String, Integer> snippets) {
-        String boldPart = "";
-        Optional<Map.Entry<String, Integer>> optBoldPart
-                = snippets.entrySet().stream()
-                .max(Map.Entry.comparingByValue());
-        if (optBoldPart.isPresent()) {
-            boldPart = optBoldPart.get().getKey();
-        }
-        int start = boldPart.indexOf(boldStart);
-        int end = boldPart.lastIndexOf(boldEnd) + boldEnd.length();
-        boldPart = boldPart.substring(start > 3 ? start - 3 : start,
-                boldPart.length() - end > 3 ? end + 3 : end);
-        return boldPart;
-    }
-
-
-    private String getFormattedPart(String part, List<Lemma> sortedLemmas,
-                                    Map<String, Set<String>> lemmasAndWords) {
-        String[] words = part.split("\\s");
+    private String formatText(String text, List<Lemma> sortedLemmas,
+                              Map<String, Set<String>> lemmasAndWords) {
+        String[] words = text.split(" ");
         StringBuilder formattedPart = new StringBuilder();
-        if (lemmasAndWords == null) {
-            return null;
-        }
         for (String word : words) {
             for (Lemma lemma : sortedLemmas) {
                 word = getWordInBold(word, lemma.getLemma(), lemmasAndWords);
@@ -254,46 +216,28 @@ public class SearchServiceImpl implements SearchService {
                 .trim()
                 .split("[- ]");
         for (String part : formattedWord) {
-            if ((lemmasAndWords.get(lemma).stream()
-                    .anyMatch(part.replaceAll("Ё", "Е")
-                            .replaceAll("ё", "е")
-                            ::equalsIgnoreCase))) {
-                word = word.replace(part,
-                        boldStart.concat(part).concat(boldEnd));
+            if ((lemmasAndWords.get(lemma).stream().anyMatch(part
+                    .replaceAll("Ё", "Е")
+                    .replaceAll("ё", "е")
+                    ::equalsIgnoreCase))) {
+                word = word.replace(part, boldStart
+                        .concat(part).concat(boldEnd));
             }
         }
         return word;
     }
 
-    private String getSnippet(String formattedPart, String text) {
-        int leftSpace = 20;
-        int snippetLength = leftSpace * 12;
-        String threeDots = " ...";
-        String sentence = formattedPart
-                .replaceAll("</?b>", "").trim();
-        int startIndex = text.indexOf(sentence);
-        int endIndex = text.indexOf(sentence) + sentence.length();
-        String subString = text.substring(startIndex, endIndex);
-        text = text.replace(subString, formattedPart);
-        int substringStart = getSubstringStart(text,
-                formattedPart, leftSpace);
-        String snippet = text.substring(substringStart,
-                text.length() - 1);
-        return getCutSnippet(snippet, snippetLength).concat(threeDots);
-    }
+    private String cutSnippet(String snippet, int snippetLength) {
 
-    private String getCutSnippet(String snippet, int snippetLength) {
-        String tags = "</?b>";
         int count = StringUtils.countOccurrencesOf(snippet, boldStart);
-        String unformattedSnippet = snippet.replaceAll(tags, "")
+        String unformattedSnippet = snippet.replaceAll(boldRegex, "")
                 .substring(0, snippetLength);
         String formattedSnippet = "";
         for (int i = count; i >= 1; i--) {
-            int endOfSnippet = snippet.indexOf(" ",
-                    snippetLength + i
-                            * (boldStart.length() + boldEnd.length()));
+            int endOfSnippet = snippet.indexOf(" ", snippetLength
+                    + i * (boldStart.length() + boldEnd.length()));
             formattedSnippet = snippet.substring(0, endOfSnippet);
-            if (formattedSnippet.replaceAll(tags, "")
+            if (formattedSnippet.replaceAll(boldRegex, "")
                     .length() < unformattedSnippet.length()) {
                 break;
             }
@@ -302,9 +246,9 @@ public class SearchServiceImpl implements SearchService {
     }
 
 
-    private int getSubstringStart(String text, String formattedPart, int leftSpace) {
-        String maxFormattedSentence = getMaxSentenceWithTags(formattedPart);
-        int startIndex = text.indexOf(maxFormattedSentence);
+    private int findStartIndexInText(String text, String formattedPart, int leftSpace) {
+        String maxSentence = findSentenceWithMaxTags(formattedPart);
+        int startIndex = text.indexOf(maxSentence);
         if (startIndex < leftSpace) {
             leftSpace = 0;
         }
@@ -313,7 +257,7 @@ public class SearchServiceImpl implements SearchService {
                         - leftSpace : startIndex);
     }
 
-    private String getMaxSentenceWithTags(String formattedPart) {
+    private String findSentenceWithMaxTags(String formattedPart) {
         String[] sentences = formattedPart
                 .split("(?<=[.!?·])\\s*(?=(<b>|\"|«|· )?[А-ЯЁ])");
         String maxSentence = "";

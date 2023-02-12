@@ -34,6 +34,7 @@ public interface PageRepository extends JpaRepository<Page, Integer> {
             "join lemmas l on i.lemma_id = l.id " +
             "where l.id = :lemma AND p.site_id IN :sites " +
             "AND p.id in :pages", nativeQuery = true)
-    Set<Page> findPagesByLemmaAndSites(Lemma lemma, List<Site> sites, Set<Page> pages);
+    Set<Page> findPagesByOneLemmaAndSitesAndPages(Lemma lemma, List<Site> sites,
+                                                  Set<Page> pages);
 
 }
