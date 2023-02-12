@@ -45,13 +45,13 @@ public class StatisticsServiceImpl implements StatisticsService {
                 entitySaver.saveSite(value, Status.INDEXED);
             }
             Optional<Site> site = siteRepo.findFirstByUrl(url);
-            site.ifPresent(s -> detailed.add(getItem(s, total)));
+            site.ifPresent(s -> detailed.add(createItem(s, total)));
         }
-        return getResponse(total, detailed);
+        return createResponse(total, detailed);
     }
 
-    private StatisticsResponse getResponse(TotalStatistics total,
-                                           List<DetailedStatisticsItem> detailed) {
+    private StatisticsResponse createResponse(TotalStatistics total,
+                                              List<DetailedStatisticsItem> detailed) {
         StatisticsResponse response = new StatisticsResponse();
         StatisticsData data = new StatisticsData();
         data.setTotal(total);
@@ -61,8 +61,8 @@ public class StatisticsServiceImpl implements StatisticsService {
         return response;
     }
 
-    private DetailedStatisticsItem getItem(searchengine.model.Site site,
-                                           TotalStatistics total) {
+    private DetailedStatisticsItem createItem(searchengine.model.Site site,
+                                              TotalStatistics total) {
         DetailedStatisticsItem item = new DetailedStatisticsItem();
         item.setName(site.getName());
         item.setUrl(site.getUrl());

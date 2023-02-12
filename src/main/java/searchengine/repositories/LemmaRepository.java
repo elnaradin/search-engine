@@ -6,9 +6,9 @@ import org.springframework.stereotype.Repository;
 import searchengine.model.Lemma;
 import searchengine.model.Site;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Vector;
 
 @Repository
 public interface LemmaRepository extends JpaRepository<Lemma, Integer> {
@@ -18,7 +18,7 @@ public interface LemmaRepository extends JpaRepository<Lemma, Integer> {
     @Query(value = "SELECT * FROM lemmas " +
             "WHERE `lemma` IN :lemmaSet " +
             "ORDER BY `frequency` ASC ", nativeQuery = true)
-    List<Lemma> findByLemmas(Set<String> lemmaSet);
+    Vector<Lemma> findByLemmas(Set<String> lemmaSet);
 
     Integer countLemmaBySite(Site site);
 

@@ -5,7 +5,6 @@ import org.jsoup.Jsoup;
 import org.jsoup.safety.Safelist;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 import searchengine.config.SitesList;
 import searchengine.dto.statistics.Data;
 import searchengine.dto.statistics.Response;
@@ -23,17 +22,14 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class SearchServiceImpl implements SearchService {
-
     private Float maxRelevanceValue;
-    private final String boldStart = "<b>";
-    private final String boldEnd = "</b>";
-    private final String boldRegex = "</?b>";
     private final SiteRepository siteRepo;
     private final PageRepository pageRepo;
     private final LemmaRepository lemmaRepo;
     private final IndexRepository indexRepo;
     private final SitesList sitesList;
     private final LemmaFinderImpl lemmaFinder;
+    private final SnippetCreator snippetCreator;
 
     @Override
     public Response searchAndGetResponse(String query, String site,
@@ -50,11 +46,30 @@ public class SearchServiceImpl implements SearchService {
             response.setError(errors[1]);
             return response;
         }
-        if (CollectionUtils.isEmpty(sortedLemmas)) {
+        if (sortedLemmas == null) {
             response.setError(errors[2]);
             return response;
         }
+        if (sortedLemmas.size() == 0) {
+            response.setError(errors[3]);
+            return response;
+        }
         return createOkResponse(limit, offset, sortedLemmas, site);
+    }
+
+    private List<Lemma> findLemmasInDBAndSort(Set<String> lemmas) {
+        List<Lemma> sortedLemmas = lemmaRepo.findByLemmas(lemmas);
+        if (sortedLemmas.size() < lemmas.size()) {
+            return null;
+        }
+        List<Lemma> lemmasToRemove = new Vector<>();
+        for (Lemma lemma : sortedLemmas) {
+            if (lemma.getFrequency() > 250) {
+                lemmasToRemove.add(lemma);
+            }
+        }
+        sortedLemmas.removeAll(lemmasToRemove);
+        return sortedLemmas;
     }
 
     private boolean siteIsPresent(String site) {
@@ -78,7 +93,7 @@ public class SearchServiceImpl implements SearchService {
 
     private List<Data> createDataList(List<Lemma> sortedLemmas, String site) {
         List<Site> sites = getSites(site);
-        Set<Page> pages = findPages(sortedLemmas, sites);
+        List<Page> pages = findPages(sortedLemmas, sites);
         List<Data> dataList = new ArrayList<>();
         for (Page page : pages) {
             String content = page.getContent();
@@ -114,7 +129,7 @@ public class SearchServiceImpl implements SearchService {
                 .replaceAll("<[^>]*>", " ")
                 .replaceAll("https?://[\\w\\W]\\S+", "")
                 .replaceAll("\\s*\\n+\\s*", " · ");
-        data.setSnippet(createSnippet(text, sortedLemmas));
+        data.setSnippet(snippetCreator.createSnippet(text, sortedLemmas));
         return data;
     }
 
@@ -133,145 +148,19 @@ public class SearchServiceImpl implements SearchService {
         if (maxRelevanceValue == null) {
             maxRelevanceValue = indexRepo.getMaxValue();
         }
-        return indexRepo
-                .getRelevance(page, maxRelevanceValue);
+        return indexRepo.getRelevance(page,
+                maxRelevanceValue);
     }
 
-    private Set<Page> findPages(List<Lemma> sortedLemmas, List<Site> sites) {
-        Set<Page> pages = pageRepo.findPagesByLemmasAndSites(sortedLemmas, sites);
-        for (int i = 0; i < sortedLemmas.size() - 1; i++) {
-            Set<Page> foundPages = pageRepo
-                    .findPagesByOneLemmaAndSitesAndPages(sortedLemmas.get(i),
+    private List<Page> findPages(List<Lemma> sortedLemmas, List<Site> sites) {
+        List<Page> pages = pageRepo.findPagesByLemmasAndSites(sortedLemmas, sites);
+        for (Lemma sortedLemma : sortedLemmas) {
+            List<Page> foundPages = pageRepo
+                    .findPagesByOneLemmaAndSitesAndPages(sortedLemma,
                             sites, pages);
             pages.clear();
             pages.addAll(foundPages);
         }
-        return pageRepo.findPagesByOneLemmaAndSitesAndPages(sortedLemmas
-                .get(sortedLemmas.size() > 0 ? sortedLemmas
-                        .size() - 1 : 0), sites, pages);
-    }
-
-    private List<Lemma> findLemmasInDBAndSort(Set<String> lemmas) {
-        List<Lemma> sortedLemmas = lemmaRepo.findByLemmas(lemmas);
-        if (sortedLemmas.size() < lemmas.size()) {
-            return null;
-        }
-        List<Lemma> lemmasToRemove = new Vector<>();
-        for (Lemma lemma : sortedLemmas) {
-            if (lemma.getFrequency() > 250) {
-                lemmasToRemove.add(lemma);
-            }
-        }
-        sortedLemmas.removeAll(lemmasToRemove);
-        return sortedLemmas;
-    }
-
-    private String createSnippet(String text, List<Lemma> sortedLemmas) {
-        String formattedPart = findQueryPartAndFormat(text, sortedLemmas);
-        int leftSpace = 20;
-        int snippetLength = leftSpace * 12;
-        String threeDots = " ...";
-        String sentence = formattedPart
-                .replaceAll(boldRegex, "").trim();
-        int startIndex = text.indexOf(sentence);
-        int endIndex = text.indexOf(sentence) + sentence.length();
-        String subString = text.substring(startIndex, endIndex);
-        text = text.replace(subString, formattedPart);
-        int substringStart = findStartIndexInText(text,
-                formattedPart, leftSpace);
-        String snippet = text.substring(substringStart,
-                text.length() - 1);
-        return cutSnippet(snippet, snippetLength).concat(threeDots);
-    }
-
-    private String findQueryPartAndFormat(String text, List<Lemma> sortedLemmas) {
-        Map<String, Set<String>> lemmasAndWords =
-                lemmaFinder.collectLemmasAndWords(text);
-        String formattedText = formatText(text,
-                sortedLemmas, lemmasAndWords);
-        int start = formattedText.indexOf(boldStart);
-        int end = formattedText.lastIndexOf(boldEnd) + boldEnd.length();
-        return formattedText.substring(start > 3 ? start - 3 : start,
-                formattedText.length() - end > 3 ? end + 3 : end);
-    }
-
-
-    private String formatText(String text, List<Lemma> sortedLemmas,
-                              Map<String, Set<String>> lemmasAndWords) {
-        String[] words = text.split(" ");
-        StringBuilder formattedPart = new StringBuilder();
-        for (String word : words) {
-            for (Lemma lemma : sortedLemmas) {
-                word = getWordInBold(word, lemma.getLemma(), lemmasAndWords);
-            }
-            formattedPart.append(word).append(" ");
-        }
-        return formattedPart.toString();
-    }
-
-    private String getWordInBold(String word, String lemma,
-                                 Map<String, Set<String>> lemmasAndWords) {
-        String[] formattedWord = word
-                .replaceAll("([^А-Яа-яЁё\\-])", " ")
-                .trim()
-                .split("[- ]");
-        for (String part : formattedWord) {
-            if ((lemmasAndWords.get(lemma).stream().anyMatch(part
-                    .replaceAll("Ё", "Е")
-                    .replaceAll("ё", "е")
-                    ::equalsIgnoreCase))) {
-                word = word.replace(part, boldStart
-                        .concat(part).concat(boldEnd));
-            }
-        }
-        return word;
-    }
-
-    private String cutSnippet(String snippet, int snippetLength) {
-
-        int count = StringUtils.countOccurrencesOf(snippet, boldStart);
-        String unformattedSnippet = snippet.replaceAll(boldRegex, "")
-                .substring(0, snippetLength);
-        String formattedSnippet = "";
-        for (int i = count; i >= 1; i--) {
-            int endOfSnippet = snippet.indexOf(" ", snippetLength
-                    + i * (boldStart.length() + boldEnd.length()));
-            formattedSnippet = snippet.substring(0, endOfSnippet);
-            if (formattedSnippet.replaceAll(boldRegex, "")
-                    .length() < unformattedSnippet.length()) {
-                break;
-            }
-        }
-        return formattedSnippet;
-    }
-
-
-    private int findStartIndexInText(String text, String formattedPart, int leftSpace) {
-        String maxSentence = findSentenceWithMaxTags(formattedPart);
-        int startIndex = text.indexOf(maxSentence);
-        if (startIndex < leftSpace) {
-            leftSpace = 0;
-        }
-        return text.indexOf(" ",
-                startIndex > leftSpace ? startIndex
-                        - leftSpace : startIndex);
-    }
-
-    private String findSentenceWithMaxTags(String formattedPart) {
-        String[] sentences = formattedPart
-                .split("(?<=[.!?·])\\s*(?=(<b>|\"|«|· )?[А-ЯЁ])");
-        String maxSentence = "";
-        int maxValue = 0;
-        for (String sentence : sentences) {
-            int boldWordsCount = StringUtils
-                    .countOccurrencesOf(sentence, boldStart);
-            if (boldWordsCount > maxValue) {
-                maxValue = boldWordsCount;
-                maxSentence = sentence;
-            }
-        }
-        int index = formattedPart.indexOf(maxSentence);
-        return formattedPart.substring(index,
-                index + maxSentence.length());
+        return pages;
     }
 }
