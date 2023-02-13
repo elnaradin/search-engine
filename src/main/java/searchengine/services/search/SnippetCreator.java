@@ -18,16 +18,9 @@ public class SnippetCreator {
     private final String END_TAG = "</b>";
     private final int SNIPPET_LENGTH = 240;
 
-    public String createSnippet(String text, List<Lemma> sortedLemmas) {
-        String formattedText = formatText(text, sortedLemmas);
-        String threeDots = " ...";
-        int substringStart = findStartIndexInText(formattedText);
-        String partWithTags = formattedText.substring(substringStart,
-                formattedText.length() - 1);
-        return cutSnippet(partWithTags).concat(threeDots);
-    }
 
-    private String formatText(String text, List<Lemma> sortedLemmas) {
+    public String createSnippet(String text, List<Lemma> sortedLemmas) {
+        String threeDots = " ...";
         Map<String, Set<String>> lemmasAndForms =
                 lemmaFinder.collectLemmasAndWords(text);
         String[] words = text.split(" ");
@@ -38,7 +31,7 @@ public class SnippetCreator {
             }
             formattedText.append(word).append(" ");
         }
-        return formattedText.toString();
+        return cutSnippet(formattedText.toString()).concat(threeDots);
     }
 
 
@@ -59,6 +52,30 @@ public class SnippetCreator {
         return word;
     }
 
+
+    private String cutSnippet(String formattedText) {
+        int tagsLength = START_TAG.length() + END_TAG.length();
+        String tagsRegex = "</?b>";
+        int substringStart = findStartIndexInText(formattedText);
+        String textFromStartIndex = formattedText.substring(substringStart,
+                formattedText.length() - 1);
+        int tagsCount = StringUtils.countOccurrencesOf(textFromStartIndex, START_TAG);
+        String unformattedSnippet = textFromStartIndex
+                .replaceAll(tagsRegex, "")
+                .substring(0, SNIPPET_LENGTH);
+        String snippet = "";
+        for (int i = tagsCount; i >= 1; i--) {
+            int endOfSnippet = textFromStartIndex.indexOf(" ",
+                    SNIPPET_LENGTH + i * tagsLength);
+            snippet = textFromStartIndex.substring(0, endOfSnippet);
+            if (snippet.replaceAll(tagsRegex, "")
+                    .length() < unformattedSnippet.length()) {
+                break;
+            }
+        }
+        return snippet;
+    }
+
     private int findStartIndexInText(String formattedText) {
         String[] sentences = formattedText.substring(formattedText
                         .indexOf(START_TAG), formattedText.lastIndexOf(END_TAG))
@@ -77,24 +94,5 @@ public class SnippetCreator {
         int leftSpace = SNIPPET_LENGTH / 12;
         return formattedText.indexOf(" ", startIndex > leftSpace
                 ? startIndex - leftSpace : startIndex);
-    }
-
-    private String cutSnippet(String partWithTags) {
-        int tagsCount = StringUtils.countOccurrencesOf(partWithTags, START_TAG);
-        int tagsLength = START_TAG.length() + END_TAG.length();
-        String tagsRegex = "</?b>";
-        String unformattedSnippet = partWithTags.replaceAll(tagsRegex, "")
-                .substring(0, SNIPPET_LENGTH);
-        String formattedSnippet = "";
-        for (int i = tagsCount; i >= 1; i--) {
-            int endOfSnippet = partWithTags.indexOf(" ",
-                    SNIPPET_LENGTH + i * tagsLength);
-            formattedSnippet = partWithTags.substring(0, endOfSnippet);
-            if (formattedSnippet.replaceAll(tagsRegex, "")
-                    .length() < unformattedSnippet.length()) {
-                break;
-            }
-        }
-        return formattedSnippet;
     }
 }
