@@ -105,23 +105,7 @@ public class IndexationServiceImpl implements IndexationService {
     }
 
 
-    private boolean siteIsPresent(String url) throws IOException {
-        if (!url.matches("https?://[\\w\\W]+")) {
-            return false;
-        }
-        if (Jsoup.connect(url).ignoreHttpErrors(true)
-                .ignoreContentType(true).get().connection()
-                .response().statusCode() == 404) {
-            return false;
-        }
-        for (SiteConfig site
-                : sitesList.getSites()) {
-            if (url.startsWith(site.getUrl())) {
-                return true;
-            }
-        }
-        return false;
-    }
+
 
     private Site findSiteByPageURL(String url) {
         List<Site> siteList = siteRepo.findAll();
@@ -144,6 +128,23 @@ public class IndexationServiceImpl implements IndexationService {
         } catch (IOException ex) {
             setFailed("Страницу " + url + " проиндексировать не удалось");
         }
+    }
+    private boolean siteIsPresent(String url) throws IOException {
+        if (!url.matches("https?://[\\w\\W]+")) {
+            return false;
+        }
+        if (Jsoup.connect(url).ignoreHttpErrors(true)
+                .ignoreContentType(true).get().connection()
+                .response().statusCode() == 404) {
+            return false;
+        }
+        for (SiteConfig site
+                : sitesList.getSites()) {
+            if (url.startsWith(site.getUrl())) {
+                return true;
+            }
+        }
+        return false;
     }
 
 

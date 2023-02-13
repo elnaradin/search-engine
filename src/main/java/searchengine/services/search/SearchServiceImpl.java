@@ -62,7 +62,7 @@ public class SearchServiceImpl implements SearchService {
         if (sortedLemmas.size() < lemmas.size()) {
             return null;
         }
-        List<Lemma> lemmasToRemove = new Vector<>();
+        List<Lemma> lemmasToRemove = new ArrayList<>();
         for (Lemma lemma : sortedLemmas) {
             if (lemma.getFrequency() > 250) {
                 lemmasToRemove.add(lemma);
@@ -74,9 +74,11 @@ public class SearchServiceImpl implements SearchService {
 
     private boolean siteIsPresent(String site) {
         return sitesList.getSites().stream()
-                .anyMatch(s -> (s.getUrl().endsWith("/") ?
-                        s.getUrl().substring(0, s.getUrl().length() - 1)
-                        : s.getUrl()).equals(site));
+                .anyMatch(s -> (s
+                        .getUrl().endsWith("/") ? s
+                        .getUrl().substring(0, s
+                                .getUrl().length() - 1) : s
+                        .getUrl()).equals(site));
     }
 
     private Response createOkResponse(int limit, int offset,

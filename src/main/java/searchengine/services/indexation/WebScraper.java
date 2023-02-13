@@ -47,7 +47,6 @@ public class WebScraper extends RecursiveAction {
             Document document = getDocument();
             entitySaver.indexAndSavePageToDB(document, site, path);
             Set<WebScraper> actionList = ConcurrentHashMap.newKeySet();
-
             Set<String> urls = (getUrls(document));
             for (String url : urls) {
                 actionList.add(createAction(url));
@@ -80,6 +79,7 @@ public class WebScraper extends RecursiveAction {
                 .ignoreHttpErrors(true)
                 .ignoreContentType(true)
                 .followRedirects(false)
+                .timeout(10_000)
                 .get();
     }
 
