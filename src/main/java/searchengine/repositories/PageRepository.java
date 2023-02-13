@@ -9,6 +9,7 @@ import searchengine.model.Site;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 
 @Repository
@@ -25,7 +26,7 @@ public interface PageRepository extends JpaRepository<Page, Integer> {
             "join lemmas l on i.lemma_id = l.id " +
             "where l.id in :lemmas " +
             "AND p.site_id IN :sites", nativeQuery = true)
-    List<Page> findPagesByLemmasAndSites(List<Lemma> lemmas, List<Site> sites);
+    Set<Page> findByLemmasAndSites(List<Lemma> lemmas, List<Site> sites);
 
 
     @Query(value = "SELECT * FROM pages p " +
@@ -33,7 +34,7 @@ public interface PageRepository extends JpaRepository<Page, Integer> {
             "join lemmas l on i.lemma_id = l.id " +
             "where l.id = :lemma AND p.site_id IN :sites " +
             "AND p.id in :pages", nativeQuery = true)
-    List<Page> findPagesByOneLemmaAndSitesAndPages(Lemma lemma, List<Site> sites,
-                                                  List<Page> pages);
+    Set<Page> findByOneLemmaAndSitesAndPages(Lemma lemma, List<Site> sites,
+                                                  Set<Page> pages);
 
 }

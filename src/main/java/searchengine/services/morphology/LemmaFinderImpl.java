@@ -20,11 +20,9 @@ public class LemmaFinderImpl implements LemmaFinder{
         String[] words = arrayContainsRussianWords(text);
         HashMap<String, Integer> lemmas = new HashMap<>();
         for (String word : words) {
-            if (isWrongWord(word)) {
-                continue;
-            }
-            List<String> normalForms = luceneMorphology.getNormalForms(word);
-            if (normalForms.isEmpty()) {
+            List<String> normalForms = luceneMorphology
+                    .getNormalForms(word);
+            if (isWrongWord(word) || normalForms.isEmpty()) {
                 continue;
             }
             String normalWord = normalForms.get(0);
@@ -42,11 +40,9 @@ public class LemmaFinderImpl implements LemmaFinder{
         String[] words = arrayContainsRussianWords(text);
         Set<String> lemmas = new HashSet<>();
         for (String word : words) {
-            if (isWrongWord(word)) {
-                continue;
-            }
-            List<String> normalForms = luceneMorphology.getNormalForms(word);
-            if (normalForms.isEmpty()) {
+            List<String> normalForms = luceneMorphology
+                    .getNormalForms(word);
+            if (isWrongWord(word) || normalForms.isEmpty()) {
                 continue;
             }
             String normalWord = normalForms.get(0);
@@ -60,11 +56,9 @@ public class LemmaFinderImpl implements LemmaFinder{
         String[] words = arrayContainsRussianWords(text);
         HashMap<String, Set<String>> lemmas = new HashMap<>();
         for (String word : words) {
-            if (isWrongWord(word)) {
-                continue;
-            }
-            List<String> normalForms = luceneMorphology.getNormalForms(word);
-            if (normalForms.isEmpty()) {
+            List<String> normalForms = luceneMorphology
+                    .getNormalForms(word);
+            if (isWrongWord(word) || normalForms.isEmpty()) {
                 continue;
             }
             String normalWord = normalForms.get(0);

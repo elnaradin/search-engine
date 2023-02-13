@@ -34,10 +34,10 @@ public class SearchServiceImpl implements SearchService {
     @Override
     public Response searchAndGetResponse(String query, String site,
                                          Integer offset, Integer limit) {
+        Response response = new Response();
         Set<String> lemmas = lemmaFinder.getLemmaSet(query
                 .replaceAll("[Ёё]", "е"));
         List<Lemma> sortedLemmas = findLemmasInDBAndSort(lemmas);
-        Response response = new Response();
         if (site != null && !siteIsPresent(site)) {
             response.setError(errors[0]);
             return response;
@@ -50,25 +50,16 @@ public class SearchServiceImpl implements SearchService {
             response.setError(errors[2]);
             return response;
         }
-        if (sortedLemmas.size() == 0) {
-            response.setError(errors[3]);
-            return response;
-        }
-        return createOkResponse(limit, offset, sortedLemmas, site);
+        return createResponseWithData(limit, offset,
+                sortedLemmas, site);
     }
 
     private List<Lemma> findLemmasInDBAndSort(Set<String> lemmas) {
-        List<Lemma> sortedLemmas = lemmaRepo.findByLemmas(lemmas);
+        List<Lemma> sortedLemmas = lemmaRepo
+                .findByLemmas(lemmas);
         if (sortedLemmas.size() < lemmas.size()) {
             return null;
         }
-        List<Lemma> lemmasToRemove = new ArrayList<>();
-        for (Lemma lemma : sortedLemmas) {
-            if (lemma.getFrequency() > 250) {
-                lemmasToRemove.add(lemma);
-            }
-        }
-        sortedLemmas.removeAll(lemmasToRemove);
         return sortedLemmas;
     }
 
@@ -81,21 +72,26 @@ public class SearchServiceImpl implements SearchService {
                         .getUrl()).equals(site));
     }
 
-    private Response createOkResponse(int limit, int offset,
-                                      List<Lemma> sortedLemmas, String site) {
-        List<Data> dataList = createDataList(sortedLemmas, site);
+    private Response createResponseWithData(int limit, int offset,
+                                            List<Lemma> sortedLemmas,
+                                            String site) {
+        int endIndex = offset + limit;
         Response response = new Response();
+        Set<Page> pages = findPages(sortedLemmas, site);
+        if (CollectionUtils.isEmpty(pages)) {
+            response.setError(errors[3]);
+            return response;
+        }
+        List<Data> dataList = createDataList(sortedLemmas, pages);
         response.setCount(dataList.size());
         response.setResult(true);
-        int endIndex = offset + limit;
         response.setData(dataList.subList(offset,
                 Math.min(endIndex, dataList.size())));
         return response;
     }
 
-    private List<Data> createDataList(List<Lemma> sortedLemmas, String site) {
-        List<Site> sites = getSites(site);
-        List<Page> pages = findPages(sortedLemmas, sites);
+    private List<Data> createDataList(List<Lemma> sortedLemmas,
+                                      Set<Page> pages) {
         List<Data> dataList = new ArrayList<>();
         for (Page page : pages) {
             String content = page.getContent();
@@ -131,7 +127,8 @@ public class SearchServiceImpl implements SearchService {
                 .replaceAll("<[^>]*>", " ")
                 .replaceAll("https?://[\\w\\W]\\S+", "")
                 .replaceAll("\\s*\\n+\\s*", " · ");
-        data.setSnippet(snippetCreator.createSnippet(text, sortedLemmas));
+        data.setSnippet(snippetCreator
+                .createSnippet(text, sortedLemmas));
         return data;
     }
 
@@ -139,7 +136,8 @@ public class SearchServiceImpl implements SearchService {
         String titleStart = "<title>";
         String titleEnd = "</title>";
         if (content.contains(titleStart)) {
-            int start = content.indexOf(titleStart) + titleStart.length();
+            int start = content.indexOf(titleStart)
+                    + titleStart.length();
             int end = content.indexOf(titleEnd);
             return content.substring(start, end);
         }
@@ -154,15 +152,28 @@ public class SearchServiceImpl implements SearchService {
                 maxRelevanceValue);
     }
 
-    private List<Page> findPages(List<Lemma> sortedLemmas, List<Site> sites) {
-        List<Page> pages = pageRepo.findPagesByLemmasAndSites(sortedLemmas, sites);
-        for (Lemma sortedLemma : sortedLemmas) {
-            List<Page> foundPages = pageRepo
-                    .findPagesByOneLemmaAndSitesAndPages(sortedLemma,
+    private Set<Page> findPages(List<Lemma> sortedLemmas, String site) {
+        List<Site> sites = getSites(site);
+        List<Lemma> nonFrequentLemmas = pickNonFrequentLemmas(sortedLemmas);
+        Set<Page> pages = pageRepo
+                .findByLemmasAndSites(nonFrequentLemmas, sites);
+        for (Lemma sortedLemma : nonFrequentLemmas) {
+            Set<Page> foundPages = pageRepo
+                    .findByOneLemmaAndSitesAndPages(sortedLemma,
                             sites, pages);
             pages.clear();
             pages.addAll(foundPages);
         }
         return pages;
+    }
+    private List<Lemma> pickNonFrequentLemmas(List<Lemma> sortedLemmas){
+        int maxLemmaFrequency = 250;
+        List<Lemma> lowFrequencyLemmas = new ArrayList<>();
+        for (Lemma lemma : sortedLemmas) {
+            if (lemma.getFrequency() < maxLemmaFrequency) {
+                lowFrequencyLemmas.add(lemma);
+            }
+        }
+        return lowFrequencyLemmas;
     }
 }

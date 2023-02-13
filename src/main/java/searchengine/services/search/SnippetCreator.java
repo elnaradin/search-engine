@@ -27,7 +27,9 @@ public class SnippetCreator {
         StringBuilder formattedText = new StringBuilder();
         for (String word : words) {
             for (Lemma lemma : sortedLemmas) {
-                word = formatWordIfIsInQuery(word, lemma.getLemma(), lemmasAndForms);
+                word = formatWordIfIsInQuery(word,
+                        lemma.getLemma(),
+                        lemmasAndForms);
             }
             formattedText.append(word).append(" ");
         }
@@ -41,6 +43,9 @@ public class SnippetCreator {
                 .replaceAll("([^А-Яа-яЁё\\-])", " ")
                 .trim().split("[- ]");
         for (String part : formattedWord) {
+            if (lemmasAndWords.get(lemma) == null) {
+                return word;
+            }
             if ((lemmasAndWords.get(lemma).stream().anyMatch(part
                     .replaceAll("Ё", "Е")
                     .replaceAll("ё", "е")
@@ -90,8 +95,8 @@ public class SnippetCreator {
                 maxSentence = sentence;
             }
         }
-        int startIndex = formattedText.indexOf(maxSentence);
-        int leftSpace = SNIPPET_LENGTH / 12;
+        int startIndex = formattedText.indexOf(START_TAG, formattedText.indexOf(maxSentence));
+        int leftSpace = SNIPPET_LENGTH / 6;
         return formattedText.indexOf(" ", startIndex > leftSpace
                 ? startIndex - leftSpace : startIndex);
     }

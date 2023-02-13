@@ -26,8 +26,10 @@ public class WebScraper extends RecursiveAction {
     private final EntitySaver entitySaver;
 
 
-    public WebScraper(Site site, String path, SiteRepository siteRepo,
-                      PageRepository pageRepo, JsoupSettings settings,
+    public WebScraper(Site site, String path,
+                      SiteRepository siteRepo,
+                      PageRepository pageRepo,
+                      JsoupSettings settings,
                       EntitySaver entitySaver) {
         this.site = site;
         this.path = path;
@@ -103,10 +105,12 @@ public class WebScraper extends RecursiveAction {
     }
 
     private void setErrorToSite(Exception e) {
-        Optional<Site> optSite = siteRepo.findFirstByUrl(site.getUrl());
+        Optional<Site> optSite = siteRepo
+                .findFirstByUrl(site.getUrl());
         if (optSite.isPresent()) {
             optSite.get().setStatus(Status.FAILED);
-            optSite.get().setLastError("Произошла ошибка при парсинге страницы. "
+            optSite.get().setLastError("Произошла ошибка " +
+                    "при парсинге страницы. "
                     + "Сообщение ошибки: " + e.getMessage());
             siteRepo.saveAndFlush(optSite.get());
         }

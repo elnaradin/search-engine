@@ -97,14 +97,13 @@ public class IndexationServiceImpl implements IndexationService {
         for (Site site : sites) {
             threads.add(new Thread(() -> {
                 pool.invoke(new WebScraper(site, "",
-                        siteRepo, pageRepo, settings, entitySaver));
+                        siteRepo, pageRepo, settings,
+                        entitySaver));
                 setIndexed(site);
             }));
         }
         threads.forEach(Thread::start);
     }
-
-
 
 
     private Site findSiteByPageURL(String url) {
@@ -126,9 +125,11 @@ public class IndexationServiceImpl implements IndexationService {
                         url.replace(site.getUrl(), ""));
             }
         } catch (IOException ex) {
-            setFailed("Страницу " + url + " проиндексировать не удалось");
+            setFailed("Страницу " + url
+                    + " проиндексировать не удалось");
         }
     }
+
     private boolean siteIsPresent(String url) throws IOException {
         if (!url.matches("https?://[\\w\\W]+")) {
             return false;
@@ -182,7 +183,8 @@ public class IndexationServiceImpl implements IndexationService {
     private void setFailed(String message) {
         List<Site> sites = siteRepo.findAll();
         try {
-            if (pool.awaitTermination(3_000, TimeUnit.MILLISECONDS)) {
+            if (pool.awaitTermination(3_000,
+                    TimeUnit.MILLISECONDS)) {
                 sites.forEach(site -> {
                     site.setStatus(Status.FAILED);
                     site.setLastError(message);
