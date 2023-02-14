@@ -71,8 +71,8 @@ public class WebScraper extends RecursiveAction {
         return action;
     }
 
-    private synchronized Document getDocument()
-            throws IOException, InterruptedException {
+    private Document getDocument() throws IOException,
+            InterruptedException {
         String url = site.getUrl().concat(path);
         Thread.sleep(500);
         return Jsoup.connect(url)
@@ -93,7 +93,6 @@ public class WebScraper extends RecursiveAction {
                 .collect(Collectors.toSet());
     }
 
-
     private boolean isCorrectPath(String url) {
         if (!url.startsWith(site.getUrl())) {
             return false;
@@ -110,8 +109,8 @@ public class WebScraper extends RecursiveAction {
         if (optSite.isPresent()) {
             optSite.get().setStatus(Status.FAILED);
             optSite.get().setLastError("Произошла ошибка " +
-                    "при парсинге страницы. "
-                    + "Сообщение ошибки: " + e.getMessage());
+                    "при парсинге страницы: " + site.getUrl() + path
+                    + " Сообщение ошибки: " + e.toString());
             siteRepo.saveAndFlush(optSite.get());
         }
     }

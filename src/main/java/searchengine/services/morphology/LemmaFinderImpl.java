@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.util.*;
 
 @Service
-public class LemmaFinderImpl implements LemmaFinder{
+public class LemmaFinderImpl implements LemmaFinder {
     private final LuceneMorphology luceneMorphology = new RussianLuceneMorphology();
     private final String[] particlesNames = new String[]{"МЕЖД", "ПРЕДЛ", "СОЮЗ"};
 
@@ -20,9 +20,12 @@ public class LemmaFinderImpl implements LemmaFinder{
         String[] words = arrayContainsRussianWords(text);
         HashMap<String, Integer> lemmas = new HashMap<>();
         for (String word : words) {
+            if (isWrongWord(word)) {
+                continue;
+            }
             List<String> normalForms = luceneMorphology
                     .getNormalForms(word);
-            if (isWrongWord(word) || normalForms.isEmpty()) {
+            if(normalForms.isEmpty()){
                 continue;
             }
             String normalWord = normalForms.get(0);
@@ -40,9 +43,12 @@ public class LemmaFinderImpl implements LemmaFinder{
         String[] words = arrayContainsRussianWords(text);
         Set<String> lemmas = new HashSet<>();
         for (String word : words) {
+            if (isWrongWord(word)) {
+                continue;
+            }
             List<String> normalForms = luceneMorphology
                     .getNormalForms(word);
-            if (isWrongWord(word) || normalForms.isEmpty()) {
+            if(normalForms.isEmpty()){
                 continue;
             }
             String normalWord = normalForms.get(0);
@@ -56,9 +62,11 @@ public class LemmaFinderImpl implements LemmaFinder{
         String[] words = arrayContainsRussianWords(text);
         HashMap<String, Set<String>> lemmas = new HashMap<>();
         for (String word : words) {
-            List<String> normalForms = luceneMorphology
-                    .getNormalForms(word);
-            if (isWrongWord(word) || normalForms.isEmpty()) {
+            if (isWrongWord(word)) {
+                continue;
+            }
+            List<String> normalForms = luceneMorphology.getNormalForms(word);
+            if(normalForms.isEmpty()){
                 continue;
             }
             String normalWord = normalForms.get(0);
