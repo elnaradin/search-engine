@@ -167,16 +167,17 @@ public class IndexationServiceImpl implements IndexationService {
 
 
     private void setIndexed(Site site) {
-        if (!WebScraper.isStopped) {
-            Optional<Site> optSite = siteRepo
-                    .findFirstByUrl(site.getUrl());
-            if (optSite.isPresent() && !optSite.get()
-                    .getStatus().equals(Status.FAILED)) {
-                optSite.get().setStatus(Status.INDEXED);
-                optSite.get().setStatusTime(new Date());
-                optSite.get().setLastError(null);
-                siteRepo.saveAndFlush(optSite.get());
-            }
+        if (WebScraper.isStopped) {
+            return;
+        }
+        Optional<Site> optSite = siteRepo
+                .findFirstByUrl(site.getUrl());
+        if (optSite.isPresent() && !optSite.get()
+                .getStatus().equals(Status.FAILED)) {
+            optSite.get().setStatus(Status.INDEXED);
+            optSite.get().setStatusTime(new Date());
+            optSite.get().setLastError(null);
+            siteRepo.saveAndFlush(optSite.get());
         }
     }
 

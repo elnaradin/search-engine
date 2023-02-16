@@ -38,7 +38,6 @@ public class EntitySaver {
                 .findFirstByUrl(site.getUrl());
         if (optSite.isPresent()) {
             optSite.get().setLastError(null);
-            optSite.get().setStatus(Status.INDEXING);
             optSite.get().setStatusTime(new Date());
             siteRepo.saveAndFlush(optSite.get());
         }
