@@ -36,13 +36,16 @@ Here is the search bar. You can choose the site you want to get pages from in th
 10. dictionary-reader
 11. english
 11. russian
-## Installation
-1. Create a database in MySQL Workbench. 
-#####
-![database](https://user-images.githubusercontent.com/116953743/213188389-b4577dfa-8bf0-43bf-8a14-1f8c5948526b.png)
-#####
-2. Open the file **application.yaml** in the project and change the password to the one that you have.
-#####
-![password](https://user-images.githubusercontent.com/116953743/213189429-ab4d0091-9beb-4cd1-af07-a13526abc8ca.png)
-#####
-3. Run it and go to http://localhost:8080/ in your browser.
+## How to run 
+
+Go to the root folder
+
+1. Create a jar file
+```
+mvn clean package
+```
+2. Specify the port and run the app
+```
+java -jar "-Dserver.port=8089" ./target/search-engine-1.0-SNAPSHOT.jar
+```
+
